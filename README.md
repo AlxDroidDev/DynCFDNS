@@ -3,35 +3,22 @@
 [![License Badge][]][License] [![GitHub Status][]][GitHub] [![Coverity Status][]][Coverity Scan]
 
 ## Table of contents
-- [🌐 DynCFDNS](#-dyncfdns)
-  - [Table of contents](#table-of-contents)
-  - [What it is](#what-it-is)
-  - [✨ Features](#-features)
-  - [Future Enhancements:](#future-enhancements)
-  - [📋 Prerequisites](#-prerequisites)
-  - [🔧 Environment Variables](#-environment-variables)
-  - [🔑 Getting CloudFlare Credentials](#-getting-cloudflare-credentials)
-  - [🐍 Python Installation](#-python-installation)
-    - [Install Dependencies](#install-dependencies)
-    - [Run the Application](#run-the-application)
-  - [🐳 Docker Usage](#-docker-usage)
-    - [Build Docker Image](#build-docker-image)
-    - [Run with Docker](#run-with-docker)
-    - [Docker Compose](#docker-compose)
-      - [Using Environment File](#using-environment-file)
-    - [Run with Docker Compose](#run-with-docker-compose)
-  - [📁 Project Structure](#-project-structure)
-  - [🚀 Quick Start](#-quick-start)
-  - [📊 Monitoring](#-monitoring)
-    - [View Logs](#view-logs)
-    - [Health Check](#health-check)
-  - [🔒 Security Best Practices](#-security-best-practices)
-  - [🐛 Troubleshooting](#-troubleshooting)
-    - [Common Issues](#common-issues)
-    - [Debug Mode](#debug-mode)
-  - [📄 License](#-license)
-  - [🤝 Contributing](#-contributing)
-  - [📞 Support](#-support)
+- [Table of contents](#table-of-contents)
+- [What it is](#what-it-is)
+- [Features](#-features)
+- [Future Enhancements:](#future-enhancements)
+- [Prerequisites](#-prerequisites)
+- [Environment Variables](#-environment-variables)
+- [Getting CloudFlare Credentials](#-getting-cloudflare-credentials)
+- [Python Installation](#-python-installation)
+- [Docker Usage](#-docker-usage)
+- [Project Structure](#-project-structure)
+- [Quick Start](#-quick-start)
+- [Monitoring](#-monitoring)
+- [Security Best Practices](#-security-best-practices)
+- [Troubleshooting](#-troubleshooting)
+- [License](#-license)
+- [Contributing](#-contributing)
 
 
 ## What it is
@@ -69,7 +56,7 @@ All you need is to have your zone configured in CloudFlare and the necessary API
 - Domain(s) managed by Cloudflare
 - Python 3.8+ or Docker 
 
-## 🔧 Environment Variables
+## Environment Variables
 
 | Variable | Description | Required | Default | Example |
 |----------|-------------|----------|---------|---------|
@@ -257,17 +244,17 @@ docker logs -f dyncfdns
 ### Health Check
 
 The application includes built-in health monitoring:
-- ✅ Successful updates are logged
-- ❌ Failed updates are logged with error details
-- 🔄 Next update time is displayed
+- Successful updates are logged
+- Failed updates are logged with error details
+- Next update time is displayed
 
-## 🔒 Security Best Practices
+## Security Best Practices
 
-- 🔐 Use API tokens instead of global API keys when possible
-- 📝 Limit API token permissions to only what's needed
-- 🚫 Never commit credentials to version control
-- 🔄 Regularly rotate API credentials
-- 🛡️ Use environment files or secrets management
+- Use API tokens instead of global API keys when possible
+- Limit API token permissions to only what's needed
+- Never commit credentials to version control
+- Regularly rotate API credentials - but remember to update your environment variables accordingly
+- Use environment files or secrets management
 
 ## 🐛 Troubleshooting
 
