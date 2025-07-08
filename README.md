@@ -1,35 +1,48 @@
 🌐 DynCFDNS 
 =====================================
-[![License Badge][]][License] [![GitHub Status][]][GitHub] [![Coverity Status][]][Coverity Scan]
 
 ## Table of contents
-- [Table of contents](#table-of-contents)
-- [What it is](#what-it-is)
-- [Features](#-features)
+- [5 Ws](#5-ws)
+- [Features](#features)
 - [Future Enhancements:](#future-enhancements)
-- [Prerequisites](#-prerequisites)
-- [Environment Variables](#-environment-variables)
-- [Getting CloudFlare Credentials](#-getting-cloudflare-credentials)
-- [Python Installation](#-python-installation)
-- [Docker Usage](#-docker-usage)
-- [Project Structure](#-project-structure)
-- [Quick Start](#-quick-start)
-- [Monitoring](#-monitoring)
-- [Security Best Practices](#-security-best-practices)
-- [Troubleshooting](#-troubleshooting)
-- [License](#-license)
-- [Contributing](#-contributing)
+- [Prerequisites](#prerequisites)
+- [Environment Variables](#environment-variables)
+- [Getting CloudFlare Credentials](#getting-cloudflare-credentials)
+- [Python Installation](#python-installation)
+- [Docker Usage](#docker-usage)
+- [Project Structure](#project-structure)
+- [Quick Start](#quick-start)
+- [Monitoring](#monitoring)
+- [Security Best Practices](#security-best-practices)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+- [Alternatives](#alternatives)
+- [Contributing](#contributing)
 
 
-## What it is
+## 5 Ws
 
-Dynamic DNS update service for CloudFlare domains using Python. Automatically updates your DNS records with your current external IP address at configurable intervals.
+### What
+DynCFDNS is a dynamic DNS update service for CloudFlare domains using Python. In short, it automatically updates your DNS records with your current external IP address at configurable intervals.
 
-With DynCFDNS you do not need external Dynamic DNS services. It directly integrates with CloudFlare's API to keep your DNS records up-to-date, ensuring your domains always point to the correct IP address. No more DynDNS, No-IP, or other third-party services needed.
+With DynCFDNS you no longer need external Dynamic DNS services if you own a domain. It directly integrates with CloudFlare's API to keep your DNS records up-to-date, ensuring your domains always point to the correct IP address. No more DynDNS, No-IP, or other third-party services needed.
 
 This application runs in your own environment, whether in a Docker container, kubernetes pod or directly on your server, providing you full control over your DNS updates.
 
 All you need is to have your zone configured in CloudFlare and the necessary API credentials. DynCFDNS will handle the rest, updating your DNS records automatically based on your current external IP address.
+
+### Why
+I wanted to create a simple, efficient, and secure way to manage dynamic DNS updates for my CloudFlare domains without relying on third-party services. This project aims to provide a lightweight solution that can be easily deployed in various environments, including Docker and Kubernetes, as well as run in my VPS on OCI and AWS. However, I wanted something that could update several records at a time for the same external IP, because that is a scenario I have.
+
+### Who
+DynCFDNS is developed and maintained by [AlxDroidDev](https://github.com/AlxDroidDev)
+
+### Where
+São Paulo, SP, Brazil
+
+### When
+This project was started in July 2025.
+
 
 ## Features
 
@@ -256,7 +269,7 @@ The application includes built-in health monitoring:
 - Regularly rotate API credentials - but remember to update your environment variables accordingly
 - Use environment files or secrets management
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -284,11 +297,11 @@ export DEBUG=true
 python main.py
 ```
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -296,11 +309,23 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📞 Support
+## Alternatives
 
-- 🐛 [Report Issues](https://github.com/AlxDroidDev/DynCFDNS/issues)
-- 💬 [Discussions](https://github.com/AlxDroidDev/DynCFDNS/discussions)
-- 📧 Contact: [Your Email]
+If you are looking for alternatives, consider:
+
+#### [ddclient](https://github.com/ddclient/ddclient) 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;PERL-based dynamic DNS client, compatible with several DNS providers.
+#### [inadyn](https://github.com/troglobit/inadyn)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Lightweight dynamic DNS client supporting multiple providers, built in C, ready for IPv6.
+#### [dnsupdate](https://github.com/lopsided98/dnsupdate)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Modern and flexible DNS updater, written in Python. Supports multiple providers, configurable via YAML.
+
+ 
+
+## Support
+
+- [Report Issues](https://github.com/AlxDroidDev/DynCFDNS/issues)
+- [Discussions](https://github.com/AlxDroidDev/DynCFDNS/discussions)
 
 ---
 
