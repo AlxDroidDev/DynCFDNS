@@ -1,65 +1,75 @@
 import json
+import logging
 import os
+import time
+from typing import Optional, Dict, List, Tuple
 
 import requests
 import tldextract
 from cloudflare import Cloudflare
-import time
-import signal
-import sys
 
-def signal_handler(sig, frame):
-    print("\nGracefully shutting down...")
-    sys.exit(0)
+logger = logging.getLogger("dyn_cloudflare_dns_updater")
+
+info = logger.info
+warn = logger.warning
+error = logger.error
 
 
-def get_external_ip():
+def configure_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[logging.StreamHandler()]
+    )
+
+
+def get_external_ip() -> Optional[str]:
     try:
-        response = requests.get('https://api.ipify.org?format=json')
+        response = requests.get('https://api.ipify.org?format=json', timeout=15)
         response.raise_for_status()
         return response.json()['ip']
     except requests.RequestException as e:
-        print(f"Error fetching external IP: {e}")
+        error(f"Error fetching external IP: {e}")
         return None
 
 
-def get_record_id_by_name(cf, zone_id, record_name) -> (str, str, str):
+def get_record_id_by_name(cf: Cloudflare, zone_id: str, record_name: str) ->  Tuple[Optional[str], Optional[str], Optional[bool]]:
     try:
         record = json.loads(cf.dns.records.list(zone_id=zone_id, name=record_name).model_dump_json())
         if record['result_info']['count'] != 1:
-            print(f"Either more than one or No DNS record found for {record_name} in zone {zone_id}")
+            error(f"Either more than one or No DNS record found for {record_name} in zone {zone_id}")
             return None, None, None
-        record_type = record['result'][0]['type']
         record_id = record['result'][0]['id']
+        record_type = record['result'][0]['type']
         proxied = record['result'][0]['proxied']
         return record_id, record_type, proxied
     except Exception as e:
-        print(f"An error occurred: {e}")
+        error(f"An error occurred: {e}")
         return None, None, None
 
 
-def mount_hosts_records(api_token: str, api_key: str, api_email: str, host_list: list) -> dict:
+def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_list: List[str]) -> Dict:
     cf = Cloudflare(api_token=api_token, api_email=api_email, api_key=api_key)
     try:
         zones = cf.zones.list()
         if not zones.result:
-            print("No zones found.")
+            error("No zones found in the provided account.")
             return {}
     except Exception as e:
-        print(f"Error fetching zones: {e}")
+        error(f"Error fetching zones: {e}\nCheck the API credentials and permissions.")
         return {}
 
     zone_id_map = {zone.name: zone.id for zone in zones.result if zone.name in get_tlds(host_list)}
 
     if not zone_id_map:
-        print("No matching zones found for the provided host list.")
+        error("No matching zones found for the provided host list.")
         return {}
 
     actual_update_hosts = {}
     for host in host_list:
         domain = get_domain(host)
         if domain in zone_id_map:
-            record_type, record_id, proxied = get_record_id_by_name(cf, zone_id_map[domain], host)
+            record_id, record_type, proxied = get_record_id_by_name(cf, zone_id_map[domain], host)
             if record_id:
                 actual_update_hosts[host] = {
                     'host': host,
@@ -70,22 +80,22 @@ def mount_hosts_records(api_token: str, api_key: str, api_email: str, host_list:
                     'proxied': proxied
                 }
             else:
-                print(f"No DNS record found for {host} in zone {zone_id_map[domain]}")
+                warn(f"No DNS record found for {host} in zone {zone_id_map[domain]}")
         else:
-            print(f"Domain {domain} not found in Cloudflare zones for host {host}")
+            warn(f"Domain {domain} not found in Cloudflare zones for host {host}")
     return actual_update_hosts
 
 
-def get_domain(fqdn):
+def get_domain(fqdn: str) -> str:
     ext = tldextract.extract(fqdn)
     return f"{ext.domain}.{ext.suffix}"
 
 
-def get_tlds(host_list) -> set:
+def get_tlds(host_list: List[str]) -> set:
     return {get_domain(host) for host in host_list}
 
 
-def update_cloudflare_dns_record(client: Cloudflare, host_record) -> bool:
+def update_cloudflare_dns_record(client: Cloudflare, host_record: Dict) -> bool:
     try:
         record = client.dns.records.update(
             dns_record_id=host_record['record_id'],
@@ -94,10 +104,10 @@ def update_cloudflare_dns_record(client: Cloudflare, host_record) -> bool:
             type=host_record['type'],
             name=host_record['name']
         )
-        print(f"Updated DNS record for {host_record['name']} to {host_record['content']}")
-        return record is not None and record.get('success', False)
+        info(f"Updated DNS record for {host_record['name']} to {host_record['content']}")
+        return record is not None and getattr(record, 'success', True)
     except Exception as e:
-        print(f"Error updating DNS record for {host_record['name']}: {e}")
+        error(f"Error updating DNS record for {host_record['name']}: {e}")
         return False
 
 
@@ -105,65 +115,89 @@ def update_dns_records(api_token: str, api_key: str, api_email: str, actual_upda
     cf = Cloudflare(api_token=api_token, api_email=api_email, api_key=api_key)
     external_ip = get_external_ip()
     if not external_ip:
-        print("Could not retrieve external IP address.")
+        error("Could not retrieve external IP address.")
         return False
 
-    result = True
-    for host_info in actual_update_hosts:
+    results = []
+    for host_info in actual_update_hosts.values():
         host_record = {
+            'record_id': host_info['record_id'],
             'zone_id': host_info['zone_id'],
             'type': host_info['record_type'],
             'name': host_info['host'],
             'content': external_ip,
             'proxied': host_info['proxied']
         }
-        result = result & update_cloudflare_dns_record(cf, host_record)
-    return result
+        results.append(update_cloudflare_dns_record(cf, host_record))
+    return all(results)
+
+
+def get_env_var(name: str) -> str:
+    """Get required environment variable with validation."""
+    value = os.getenv(name)
+    if not value:
+        error(f"{name} environment variable is not set.")
+        raise EnvironmentError(f"{name} is required")
+    return value
+
 
 def main():
-    host_list = list(set([host.strip().lower() for host in os.getenv('HOST_LIST', '').split(',')]))
-    update_interval = int(os.getenv('UPDATE_INTERVAL', '60')) # 60 minutes | 1 hour
-    api_token = os.getenv('CLOUDFLARE_API_TOKEN')
-    if not api_token:
-        print("CLOUDFLARE_API_TOKEN environment variable is not set.")
-        return
-    api_key = os.getenv('CLOUDFLARE_API_KEY')
-    if not api_key:
-        print("CLOUDFLARE_API_KEY environment variable is not set.")
-        return
-    api_email = os.getenv('CLOUDFLARE_API_EMAIL')
-    if not api_email:
-        print("CLOUDFLARE_API_EMAIL environment variable is not set.")
+    configure_logging()
+
+    try:
+        # Validate required environment variables
+        api_token = get_env_var('CLOUDFLARE_API_TOKEN')
+        api_key = get_env_var('CLOUDFLARE_API_KEY')
+        api_email = get_env_var('CLOUDFLARE_API_EMAIL')
+
+        host_list_str = os.getenv('HOST_LIST', '')
+        if not host_list_str:
+            error("HOST_LIST environment variable is not set.")
+            return
+
+        host_list = list(set([host.strip().lower() for host in host_list_str.split(',') if host.strip()]))
+        try:
+            update_interval = max(1, int(os.getenv('UPDATE_INTERVAL', '60')))
+        except ValueError:
+            warn("UPDATE_INTERVAL must be a valid integer. Using default value of 60 minutes.")
+            update_interval = 60
+
+    except (ValueError, TypeError) as e:
+        error(f"Configuration error: {e}")
         return
 
-    actual_update_hosts = mount_hosts_records(api_token, api_key, api_email, host_list)
+    actual_update_hosts = assemble_hosts_records(api_token, api_key, api_email, host_list)
 
-    update_interval = int(update_interval)
-    if update_interval==0:
-        update_interval = 60  # Default to 60 minutes if not set or invalid
+    if not actual_update_hosts:
+        error("No valid hosts found to monitor. Exiting.")
+        return
+
     interval_seconds = update_interval * 60  # Convert minutes to seconds
 
-    print(f"Starting DNS update service. Will update every {update_interval} minutes.")
-    print(f"Monitoring hosts: {list(actual_update_hosts.keys())}")
+    info(f"Starting DNS update service. Will update every {update_interval} minutes.")
+    info(f"Monitoring hosts: {list(actual_update_hosts.keys())}")
 
     while True:
         try:
-            print(f"Updating DNS records at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            info(f"Updating DNS records at {time.strftime('%Y-%m-%d %H:%M:%S')}")
             success = update_dns_records(api_token, api_key, api_email, actual_update_hosts)
 
             if success:
-                print("All DNS records updated successfully.")
+                info("All DNS records updated successfully.")
             else:
-                print("Some DNS record updates failed.")
+                warn("Some DNS record updates failed.")
 
-            print(f"Next update in {update_interval} minutes...")
+            info(f"Next update in {update_interval} minutes...")
             time.sleep(interval_seconds)
 
         except KeyboardInterrupt:
-            print("\nReceived interrupt signal. Shutting down...")
+            warn("\nReceived interrupt signal. Shutting down...")
             break
         except Exception as e:
-            print(f"Unexpected error during DNS update: {e}")
-            print(f"Retrying in {update_interval} minutes...")
+            error(f"Unexpected error during DNS update: {e}")
+            info(f"Retrying in {update_interval} minutes...")
             time.sleep(interval_seconds)
 
+
+if __name__ == "__main__":
+    main()

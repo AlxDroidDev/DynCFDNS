@@ -2,6 +2,12 @@
 
 Dynamic DNS update service for CloudFlare domains using Python. Automatically updates your DNS records with your current external IP address at configurable intervals.
 
+With DynCFDNS you do not need external Dynamic DNS services. It directly integrates with CloudFlare's API to keep your DNS records up-to-date, ensuring your domains always point to the correct IP address. No more DynDNS, No-IP, or other third-party services needed.
+
+This application runs in your own environment, whether in a Docker container, kubernetes pod or directly on your server, providing you full control over your DNS updates.
+
+All you need is to have your zone configured in CloudFlare and the necessary API credentials. DynCFDNS will handle the rest, updating your DNS records automatically based on your current external IP address.
+
 ## ✨ Features
 
 - 🔄 Automatic DNS record updates at configurable intervals
@@ -10,12 +16,22 @@ Dynamic DNS update service for CloudFlare domains using Python. Automatically up
 - 🐳 Docker support with Docker Compose
 - 📊 Comprehensive logging and error handling
 - 🔧 Environment-based configuration
+- Minimal Docker image
+
+## Future Enhancements:
+
+- Allow for the creation of new DNS records if they do not exist
+- Support for IPv6 addresses
+- Integration with other DNS providers (AWS Route 53, DigitalOcean, etc.)
+- Web interface for configuration and monitoring
+- Notification system for update failures
+
 
 ## 📋 Prerequisites
 
 - CloudFlare account with API access
 - Domain(s) managed by CloudFlare
-- Python 3.8+ or Docker
+- Python 3.8+ or Docker 
 
 ## 🔧 Environment Variables
 
@@ -29,12 +45,18 @@ Dynamic DNS update service for CloudFlare domains using Python. Automatically up
 
 ### 🔑 Getting CloudFlare Credentials
 
-1. **API Token** (Recommended):
+1. **API Token** (Required):
    - Go to [CloudFlare Dashboard](https://dash.cloudflare.com/profile/api-tokens)
    - Click "Create Token"
-   - Use "Custom token" with permissions:
-     - Zone: Zone:Read
-     - Zone: DNS:Edit
+   - Use tthe template "Edit zone DNS" or create a custom token with the following permissions:
+       - Permissions:
+            - Zone: DNS -> Read
+       - Zone Resources:
+            - Include: All zones or only the zones you want to manage
+       - Client IP Address filtering (Optional):
+            - You can restrict the token to specific IP addresses for added security.
+
+![Cloudflare API token permissions](./images/cf_token_perms.png)
 
 2. **Global API Key**:
    - Go to [CloudFlare Dashboard](https://dash.cloudflare.com/profile/api-tokens)

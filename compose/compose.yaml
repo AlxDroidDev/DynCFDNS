@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  dyncfdns:
+    build: .
+    container_name: dyncfdns
+    restart: unless-stopped
+    environment:
+      - HOST_LIST=home.example.com,server.example.com
+      - CLOUDFLARE_API_TOKEN=your_api_token
+      - CLOUDFLARE_API_KEY=your_api_key
+      - CLOUDFLARE_API_EMAIL=your-email@example.com
+      - UPDATE_INTERVAL=60
+
+
+
