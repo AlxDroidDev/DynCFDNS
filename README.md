@@ -1,4 +1,40 @@
-# DynCFDNS 🌐
+🌐 DynCFDNS 
+=====================================
+[![License Badge][]][License] [![GitHub Status][]][GitHub] [![Coverity Status][]][Coverity Scan]
+
+## Table of contents
+- [🌐 DynCFDNS](#-dyncfdns)
+  - [Table of contents](#table-of-contents)
+  - [What it is](#what-it-is)
+  - [✨ Features](#-features)
+  - [Future Enhancements:](#future-enhancements)
+  - [📋 Prerequisites](#-prerequisites)
+  - [🔧 Environment Variables](#-environment-variables)
+  - [🔑 Getting CloudFlare Credentials](#-getting-cloudflare-credentials)
+  - [🐍 Python Installation](#-python-installation)
+    - [Install Dependencies](#install-dependencies)
+    - [Run the Application](#run-the-application)
+  - [🐳 Docker Usage](#-docker-usage)
+    - [Build Docker Image](#build-docker-image)
+    - [Run with Docker](#run-with-docker)
+    - [Docker Compose](#docker-compose)
+      - [Using Environment File](#using-environment-file)
+    - [Run with Docker Compose](#run-with-docker-compose)
+  - [📁 Project Structure](#-project-structure)
+  - [🚀 Quick Start](#-quick-start)
+  - [📊 Monitoring](#-monitoring)
+    - [View Logs](#view-logs)
+    - [Health Check](#health-check)
+  - [🔒 Security Best Practices](#-security-best-practices)
+  - [🐛 Troubleshooting](#-troubleshooting)
+    - [Common Issues](#common-issues)
+    - [Debug Mode](#debug-mode)
+  - [📄 License](#-license)
+  - [🤝 Contributing](#-contributing)
+  - [📞 Support](#-support)
+
+
+## What it is
 
 Dynamic DNS update service for CloudFlare domains using Python. Automatically updates your DNS records with your current external IP address at configurable intervals.
 
@@ -8,29 +44,29 @@ This application runs in your own environment, whether in a Docker container, ku
 
 All you need is to have your zone configured in CloudFlare and the necessary API credentials. DynCFDNS will handle the rest, updating your DNS records automatically based on your current external IP address.
 
-## ✨ Features
+## Features
 
-- 🔄 Automatic DNS record updates at configurable intervals
-- 🌍 Support for multiple hosts/domains
-- 🛡️ Secure CloudFlare API integration
-- 🐳 Docker support with Docker Compose
-- 📊 Comprehensive logging and error handling
-- 🔧 Environment-based configuration
+- Automatic DNS record updates at configurable intervals
+- Support for multiple hosts/domains
+- Secure CloudFlare API integration
+- Docker support with Docker Compose
+- Comprehensive logging and error handling
+- Environment-based configuration
 - Minimal Docker image
+- Healthcheck included for monitoring
 
 ## Future Enhancements:
 
 - Allow for the creation of new DNS records if they do not exist
 - Support for IPv6 addresses
-- Integration with other DNS providers (AWS Route 53, DigitalOcean, etc.)
+- Integration with other DNS providers (AWS Route 53, DigitalOcean, Azure, GCP, etc.)
 - Web interface for configuration and monitoring
 - Notification system for update failures
 
+##  Prerequisites
 
-## 📋 Prerequisites
-
-- CloudFlare account with API access
-- Domain(s) managed by CloudFlare
+- Cloudflare account with API access
+- Domain(s) managed by Cloudflare
 - Python 3.8+ or Docker 
 
 ## 🔧 Environment Variables
@@ -43,7 +79,7 @@ All you need is to have your zone configured in CloudFlare and the necessary API
 | `CLOUDFLARE_API_EMAIL` | CloudFlare account email | ✅ | - | `your-email@example.com` |
 | `UPDATE_INTERVAL` | Update interval in minutes | ❌ | `60` | `30` |
 
-### 🔑 Getting CloudFlare Credentials
+### Getting CloudFlare Credentials
 
 1. **API Token** (Required):
    - Go to [CloudFlare Dashboard](https://dash.cloudflare.com/profile/api-tokens)
@@ -62,7 +98,7 @@ All you need is to have your zone configured in CloudFlare and the necessary API
    - Go to [CloudFlare Dashboard](https://dash.cloudflare.com/profile/api-tokens)
    - Click "View" next to "Global API Key"
 
-## 🐍 Python Installation
+## Python Installation
 
 ### Install Dependencies
 
@@ -82,7 +118,7 @@ export UPDATE_INTERVAL="60"
 python main.py
 ```
 
-## 🐳 Docker Usage
+## Docker Usage
 
 ### Build Docker Image
 
@@ -166,7 +202,7 @@ docker-compose logs -f
 docker-compose down
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 DynCFDNS/
@@ -179,7 +215,7 @@ DynCFDNS/
 └── README.md          # This documentation
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 1. **Clone the repository**:
    ```bash
@@ -203,7 +239,7 @@ DynCFDNS/
    docker-compose logs -f dyncfdns
    ```
 
-## 📊 Monitoring
+## Monitoring
 
 ### View Logs
 
