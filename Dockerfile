@@ -4,11 +4,9 @@ RUN mkdir -p /app
 
 ENV APP_NAME='Dynamic Cloudflare DNS Updater' \
     APP_VERSION='1.0.0' \
-    CLOUDFLARE_API_TOKEN="" \
-    CLOUDFLARE_API_KEY="" \
     CLOUDFLARE_API_EMAIL="" \
     HOST_LIST="" \
-    UPDATE_INTERVAL=60 \
+    UPDATE_INTERVAL=60 
 
 
 WORKDIR /app
