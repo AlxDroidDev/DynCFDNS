@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from typing import Optional, Dict, List, Tuple
-
+from healthcheck import write_health_status
 import requests
 import tldextract
 from cloudflare import Cloudflare
@@ -14,14 +14,30 @@ info = logger.info
 warn = logger.warning
 error = logger.error
 
+previous_ip: str = '0.0.0.0'
+previous_ip_filename = '/app/logs/previous_ip.txt'
 
 def configure_logging():
+    # Create logs directory if it doesn't exist
+    log_dir = "/app/logs"
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Create formatters
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    # Create console handler (stderr)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    # Create file handler
+    file_handler = logging.FileHandler("/app/logs/dyncfdns.log")
+    file_handler.setFormatter(formatter)
+
+    # Configure root logger
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[logging.StreamHandler()]
+        handlers=[console_handler, file_handler]
     )
-
 
 def get_external_ip() -> Optional[str]:
     try:
@@ -112,12 +128,20 @@ def update_cloudflare_dns_record(client: Cloudflare, host_record: Dict) -> bool:
 
 
 def update_dns_records(api_token: str, api_key: str, api_email: str, actual_update_hosts: dict) -> bool:
-    cf = Cloudflare(api_token=api_token, api_email=api_email, api_key=api_key)
+
+    global previous_ip
+
     external_ip = get_external_ip()
     if not external_ip:
         error("Could not retrieve external IP address.")
         return False
 
+    if (external_ip == previous_ip):
+        info("External IP has not changed, skipping DNS update.")
+        return True
+
+
+    cf = Cloudflare(api_token=api_token, api_email=api_email, api_key=api_key)
     results = []
     for host_info in actual_update_hosts.values():
         host_record = {
@@ -129,6 +153,7 @@ def update_dns_records(api_token: str, api_key: str, api_email: str, actual_upda
             'proxied': host_info['proxied']
         }
         results.append(update_cloudflare_dns_record(cf, host_record))
+    save_current_ip(external_ip)
     return all(results)
 
 
@@ -141,7 +166,30 @@ def get_env_var(name: str) -> str:
     return value
 
 
+def save_current_ip(ip: str):
+    """Save current IP as previous a file."""
+    global previous_ip, previous_ip_filename
+    if ip != previous_ip:
+        with open('/app/previous_ip.txt', 'w') as f:
+            f.write(ip)
+        previous_ip = ip
+        info(f"Previous IP updated to {ip}")
+    else:
+        info("IP has not changed, no update needed.")
+
+
+def load_previous_ip() -> str:
+    """Load previous IP from file."""
+    global previous_ip, previous_ip_filename
+    if os.path.exists(previous_ip_filename):
+        with open(previous_ip_filename, 'r') as f:
+            previous_ip = f.read().strip()
+    else:
+        save_current_ip('invalid')
+
+
 def main():
+    load_previous_ip()
     configure_logging()
 
     try:
@@ -186,7 +234,7 @@ def main():
                 info("All DNS records updated successfully.")
             else:
                 warn("Some DNS record updates failed.")
-
+            write_health_status()
             info(f"Next update in {update_interval} minutes...")
             time.sleep(interval_seconds)
 

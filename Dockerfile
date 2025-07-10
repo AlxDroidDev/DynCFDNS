@@ -16,6 +16,8 @@ ENV APP_NAME='Dynamic Cloudflare DNS Updater' \
     HOST_LIST="" \
     UPDATE_INTERVAL=60
 
-HEALTHCHECK --interval=1m --timeout=10s --start-period=30s --retries=3 CMD pgrep -f main.py > /dev/null || exit 1
+#HEALTHCHECK --interval=1m --timeout=10s --start-period=30s --retries=3 CMD pgrep -f main.py > /dev/null || exit 1
+
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 CMD python /app/healthcheck.py
 
 CMD ["python3", "/app/main.py"]
