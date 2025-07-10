@@ -4,9 +4,10 @@ import os
 import sys
 import json
 from datetime import datetime, timedelta
+from globals import UPDATE_INTERVAL
 
 HEALTH_FILE = "/tmp/dyncfdns_health.json"
-HEALTH_TIMEOUT = 300  # 5 minutes in seconds
+
 
 def write_health_status():
     """Write current timestamp to health file."""
@@ -33,7 +34,7 @@ def check_health():
         last_update = datetime.fromisoformat(health_data['last_update'])
         current_time = datetime.now()
 
-        if current_time - last_update > timedelta(seconds=HEALTH_TIMEOUT):
+        if current_time - last_update > timedelta(seconds=UPDATE_INTERVAL+10): # Allow a 10-second grace period
             return False
 
         return True

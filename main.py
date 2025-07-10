@@ -7,6 +7,7 @@ from healthcheck import write_health_status
 import requests
 import tldextract
 from cloudflare import Cloudflare
+from globals import UPDATE_INTERVAL
 
 logger = logging.getLogger("dyn_cloudflare_dns_updater")
 
@@ -186,6 +187,7 @@ def load_previous_ip() -> str:
             previous_ip = f.read().strip()
     else:
         save_current_ip('invalid')
+    return previous_ip
 
 
 def main():
@@ -204,11 +206,6 @@ def main():
             return
 
         host_list = list(set([host.strip().lower() for host in host_list_str.split(',') if host.strip()]))
-        try:
-            update_interval = max(1, int(os.getenv('UPDATE_INTERVAL', '60')))
-        except ValueError:
-            warn("UPDATE_INTERVAL must be a valid integer. Using default value of 60 minutes.")
-            update_interval = 60
 
     except (ValueError, TypeError) as e:
         error(f"Configuration error: {e}")
@@ -220,9 +217,7 @@ def main():
         error("No valid hosts found to monitor. Exiting.")
         return
 
-    interval_seconds = update_interval * 60  # Convert minutes to seconds
-
-    info(f"Starting DNS update service. Will update every {update_interval} minutes.")
+    info(f"Starting DNS update service. Will update every {UPDATE_INTERVAL} seconds.")
     info(f"Monitoring hosts: {list(actual_update_hosts.keys())}")
 
     while True:
@@ -235,7 +230,7 @@ def main():
             else:
                 warn("Some DNS record updates failed.")
             write_health_status()
-            info(f"Next update in {update_interval} minutes...")
+            info(f"Next check in {UPDATE_INTERVAL} seconds...")
             time.sleep(interval_seconds)
 
         except KeyboardInterrupt:
@@ -243,7 +238,7 @@ def main():
             break
         except Exception as e:
             error(f"Unexpected error during DNS update: {e}")
-            info(f"Retrying in {update_interval} minutes...")
+            info(f"Retrying in {UPDATE_INTERVAL} seconds...")
             time.sleep(interval_seconds)
 
 
