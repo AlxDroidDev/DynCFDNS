@@ -2,15 +2,26 @@ version: '3.8'
 
 services:
   dyncfdns:
-    build: .
+    image: alxdroiddev/dyncfdns:latest
     container_name: dyncfdns
+    hostname: dyncfdns
     restart: unless-stopped
     environment:
       - HOST_LIST=home.example.com,server.example.com
       - CLOUDFLARE_API_TOKEN=your_api_token
       - CLOUDFLARE_API_KEY=your_api_key
       - CLOUDFLARE_API_EMAIL=your-email@example.com
-      - UPDATE_INTERVAL=60
+      - UPDATE_INTERVAL=120  # OPTIONAL - Update interval in seconds (default is 120 seconds)
+      - ALLOW_CREATE_HOSTS=false # OPTIONAL - Set to true if you want to allow creating new hosts via the API
+    volumes:
+      - logs:/app/logs # OPTIONAL: Mount a volume for logs and previous IP file
+                       #           if this volume is not set, DynCFDNS will always set the
+                       #           current IP as the external IP, regardless of the previous IP
+    # optional: use .env file instead of environment variables
+    env_file:
+      - path: ./.env
+        required: false
+      
 
 
 
