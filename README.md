@@ -172,7 +172,7 @@ HOST_LIST=home.example.com,server.example.com
 CLOUDFLARE_API_TOKEN=your_api_token
 CLOUDFLARE_API_KEY=your_api_key
 CLOUDFLARE_API_EMAIL=your-email@example.com
-UPDATE_INTERVAL=60
+UPDATE_INTERVAL=120 # Optional. Value in seconds. Default is 120 seconds (2 minutes). This value also specifies the interval between healthchecks.
 ```
 
 Update `docker-compose.yml`:
@@ -207,12 +207,16 @@ docker-compose down
 ```
 DynCFDNS/
 ├── main.py              # Main application entry point
+├── healthcheck.py       # Health check script
+├── globals.py           # Global functions and constants
 ├── requirements.txt     # Python dependencies
-├── Dockerfile          # Docker build configuration
-├── docker-compose.yml  # Docker Compose configuration
-├── .env.example        # Environment variables template
-├── .gitignore         # Git ignore file
-└── README.md          # This documentation
+├── Dockerfile           # Docker build configuration
+├── images/              # Directory for images used in documentation
+├── compose/
+│   ├── compose.yml      # Docker Compose example
+│   └── .env.example     # Environment variables template
+├── .gitignore           # Git ignore file
+└── README.md            # This documentation
 ```
 
 ## Quick Start

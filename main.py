@@ -231,7 +231,7 @@ def main():
                 warn("Some DNS record updates failed.")
             write_health_status()
             info(f"Next check in {UPDATE_INTERVAL} seconds...")
-            time.sleep(interval_seconds)
+            time.sleep(UPDATE_INTERVAL)
 
         except KeyboardInterrupt:
             warn("\nReceived interrupt signal. Shutting down...")
@@ -239,7 +239,7 @@ def main():
         except Exception as e:
             error(f"Unexpected error during DNS update: {e}")
             info(f"Retrying in {UPDATE_INTERVAL} seconds...")
-            time.sleep(interval_seconds)
+            time.sleep(UPDATE_INTERVAL)
 
 
 if __name__ == "__main__":

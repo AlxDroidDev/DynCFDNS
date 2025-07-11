@@ -34,7 +34,7 @@ def check_health():
         last_update = datetime.fromisoformat(health_data['last_update'])
         current_time = datetime.now()
 
-        if current_time - last_update > timedelta(seconds=UPDATE_INTERVAL+10): # Allow a 10-second grace period
+        if current_time - last_update > timedelta(seconds=UPDATE_INTERVAL+15): # Allow a 15-second grace period
             return False
 
         return True
