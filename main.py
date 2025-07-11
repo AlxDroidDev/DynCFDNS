@@ -64,8 +64,27 @@ def get_record_id_by_name(cf: Cloudflare, zone_id: str, record_name: str) ->  Tu
         error(f"An error occurred: {e}")
         return None, None, None
 
+def create_new_host_record(cf: Cloudflare, host: str, domain: str, zone_id: str) -> Optional[str]:
+    try:
+        record = cf.dns.records.create(
+            zone_id=zone_id,
+            type='A',
+            name=f'{host}.{domain}',
+            content='0.0.0.0',
+            proxied=False
+        )
+        if record and getattr(record, 'success', False):
+            info(f"Created new DNS record for {host}.{domain}")
+            return record.result.id
+        else:
+            error(f"Failed to create DNS record for {host}.{domain}")
+            return None
+    except Exception as e:
+        error(f"Error creating DNS record for {host}.{domain}: {e}")
+        return None
 
-def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_list: List[str]) -> Dict:
+
+def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_list: List[str], allow_create_hosts: bool = False) -> Dict:
     cf = Cloudflare(api_token=api_token, api_email=api_email, api_key=api_key)
     try:
         zones = cf.zones.list()
@@ -87,6 +106,8 @@ def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_li
         domain = get_domain(host)
         if domain in zone_id_map:
             record_id, record_type, proxied = get_record_id_by_name(cf, zone_id_map[domain], host)
+            if (not record_id) and allow_create_hosts:
+                record_id, record_type, proxied = create_new_host_record(cf, host, domain, zone_id_map[domain]), 'A', False
             if record_id:
                 actual_update_hosts[host] = {
                     'host': host,
@@ -127,6 +148,20 @@ def update_cloudflare_dns_record(client: Cloudflare, host_record: Dict) -> bool:
         error(f"Error updating DNS record for {host_record['name']}: {e}")
         return False
 
+def create_cloudflare_dns_record(client: Cloudflare, host_record: Dict) -> bool:
+    try:
+        record = client.dns.records.create(
+            zone_id=host_record['zone_id'],
+            type=host_record['type'],
+            name=host_record['name'],
+            content=host_record['content'],
+            proxied=host_record['proxied']
+        )
+        info(f"Created DNS record for {host_record['name']} with content {host_record['content']}")
+        return record is not None and getattr(record, 'success', True)
+    except Exception as e:
+        error(f"Error creating DNS record for {host_record['name']}: {e}")
+        return False
 
 def update_dns_records(api_token: str, api_key: str, api_email: str, actual_update_hosts: dict) -> bool:
 
@@ -158,12 +193,15 @@ def update_dns_records(api_token: str, api_key: str, api_email: str, actual_upda
     return all(results)
 
 
-def get_env_var(name: str) -> str:
+def get_env_var(name: str, default: Optional[str] = None) -> str:
     """Get required environment variable with validation."""
     value = os.getenv(name)
     if not value:
-        error(f"{name} environment variable is not set.")
-        raise EnvironmentError(f"{name} is required")
+        if default:
+            value = default
+        else:
+            error(f"{name} environment variable is not set.")
+            raise EnvironmentError(f"{name} is required")
     return value
 
 
@@ -199,6 +237,7 @@ def main():
         api_token = get_env_var('CLOUDFLARE_API_TOKEN')
         api_key = get_env_var('CLOUDFLARE_API_KEY')
         api_email = get_env_var('CLOUDFLARE_API_EMAIL')
+        allow_create_hosts = get_env_var('ALLOW_CREATE_HOSTS', 'false').lower() in ['true', '1', 'yes']
 
         host_list_str = os.getenv('HOST_LIST', '')
         if not host_list_str:
@@ -211,7 +250,7 @@ def main():
         error(f"Configuration error: {e}")
         return
 
-    actual_update_hosts = assemble_hosts_records(api_token, api_key, api_email, host_list)
+    actual_update_hosts = assemble_hosts_records(api_token, api_key, api_email, host_list, allow_create_hosts)
 
     if not actual_update_hosts:
         error("No valid hosts found to monitor. Exiting.")
@@ -226,7 +265,7 @@ def main():
             success = update_dns_records(api_token, api_key, api_email, actual_update_hosts)
 
             if success:
-                info("All DNS records updated successfully.")
+                info("All DNS records updated successfully!")
             else:
                 warn("Some DNS record updates failed.")
             write_health_status()
