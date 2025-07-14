@@ -17,11 +17,20 @@ services:
       - logs:/app/logs # OPTIONAL: Mount a volume for logs and previous IP file
                        #           if this volume is not set, DynCFDNS will always set the
                        #           current IP as the external IP, regardless of the previous IP
+                      #            Make sure the folder is writeable by the container
     # optional: use .env file instead of environment variables
     env_file:
       - path: ./.env
         required: false
-      
+    deploy:
+      resources:
+        limits: # hard limit
+          cpus: '0.1'
+          memory: 64M
+        reservations: # soft reservation
+          cpus: '0.01'
+          memory: 32M
 
 
-
+volumes:
+  logs:

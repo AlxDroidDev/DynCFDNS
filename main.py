@@ -1,22 +1,27 @@
-import json
 import logging
 import os
+import sys
 import time
-from typing import Optional, Dict, List, Tuple
-from healthcheck import write_health_status
-import requests
+from typing import Optional, Tuple
+
+import httpx
 import tldextract
 from cloudflare import Cloudflare
-from globals import UPDATE_INTERVAL
 
-logger = logging.getLogger("dyn_cloudflare_dns_updater")
+from globals import UPDATE_INTERVAL
+from healthcheck import write_health_status
+
+logger = logging.getLogger("DynCloudflareDNS")
 
 info = logger.info
 warn = logger.warning
 error = logger.error
 
-previous_ip: str = '0.0.0.0'
-previous_ip_filename = '/app/logs/previous_ip.txt'
+default_ip: str = '10.0.0.254'  # Default placeholder IP
+previous_ip: str = ''
+PREVIOUS_IP_FILENAME: str = 'logs/previous_ip.txt'
+NOT_FOUND: str = 'Not Found'
+
 
 def configure_logging():
     # Create logs directory if it doesn't exist
@@ -40,42 +45,51 @@ def configure_logging():
         handlers=[console_handler, file_handler]
     )
 
+
 def get_external_ip() -> Optional[str]:
     try:
-        response = requests.get('https://api.ipify.org?format=json', timeout=15)
+        response = httpx.get('https://api.ipify.org?format=json', timeout=httpx.Timeout(15.0))
         response.raise_for_status()
         return response.json()['ip']
-    except requests.RequestException as e:
+    except Exception as e:
         error(f"Error fetching external IP: {e}")
         return None
 
 
-def get_record_id_by_name(cf: Cloudflare, zone_id: str, record_name: str) ->  Tuple[Optional[str], Optional[str], Optional[bool]]:
+# noinspection PyTypeChecker
+def get_record_id_by_name(cf: Cloudflare, zone_id: str, record_name: str) -> Tuple[
+    Optional[str], Optional[str], Optional[bool]]:
     try:
-        record = json.loads(cf.dns.records.list(zone_id=zone_id, name=record_name).model_dump_json())
-        if record['result_info']['count'] != 1:
-            error(f"Either more than one or No DNS record found for {record_name} in zone {zone_id}")
+        record = cf.dns.records.list(zone_id=zone_id, name=record_name)
+        if record:
+            if record.result_info.count == 0:
+                warn(
+                    f"No DNS record found for {record_name} in zone {zone_id}.\nIf the ALLOW_CREATE_HOSTS is set to true, I'll try to create a new record.")
+                return NOT_FOUND, None, None
+            if record.result_info.count > 1:
+                warn(f"Multiple DNS records found for {record_name} in zone {zone_id}. Using the first one.")
+            return record.result[0].id, record.result[0].type, record.result[0].proxied
+        else:
             return None, None, None
-        record_id = record['result'][0]['id']
-        record_type = record['result'][0]['type']
-        proxied = record['result'][0]['proxied']
-        return record_id, record_type, proxied
     except Exception as e:
         error(f"An error occurred: {e}")
         return None, None, None
+
 
 def create_new_host_record(cf: Cloudflare, host: str, domain: str, zone_id: str) -> Optional[str]:
     try:
         record = cf.dns.records.create(
             zone_id=zone_id,
             type='A',
-            name=f'{host}.{domain}',
-            content='0.0.0.0',
-            proxied=False
+            name=f'{host}',
+            content=previous_ip,  # Placeholder IP, will be updated later
+            proxied=False,
+            ttl=UPDATE_INTERVAL
         )
-        if record and getattr(record, 'success', False):
+
+        if record:
             info(f"Created new DNS record for {host}.{domain}")
-            return record.result.id
+            return record.id
         else:
             error(f"Failed to create DNS record for {host}.{domain}")
             return None
@@ -84,7 +98,24 @@ def create_new_host_record(cf: Cloudflare, host: str, domain: str, zone_id: str)
         return None
 
 
-def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_list: List[str], allow_create_hosts: bool = False) -> Dict:
+def update_cloudflare_dns_record(client: Cloudflare, host_record: dict) -> bool:
+    try:
+        record = client.dns.records.update(
+            dns_record_id=host_record['record_id'],
+            zone_id=host_record['zone_id'],
+            content=host_record['content'],
+            type=host_record['type'],
+            name=host_record['name']
+        )
+        info(f"Updated DNS record for {host_record['name']} to {host_record['content']}")
+        return record is not None and getattr(record, 'success', True)
+    except Exception as e:
+        error(f"Error updating DNS record for {host_record['name']}: {e}")
+        return False
+
+
+def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_list: list[str],
+                           allow_create_hosts: bool = False) -> dict:
     cf = Cloudflare(api_token=api_token, api_email=api_email, api_key=api_key)
     try:
         zones = cf.zones.list()
@@ -106,8 +137,9 @@ def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_li
         domain = get_domain(host)
         if domain in zone_id_map:
             record_id, record_type, proxied = get_record_id_by_name(cf, zone_id_map[domain], host)
-            if (not record_id) and allow_create_hosts:
-                record_id, record_type, proxied = create_new_host_record(cf, host, domain, zone_id_map[domain]), 'A', False
+            if (record_id == NOT_FOUND) and allow_create_hosts:
+                record_id, record_type, proxied = create_new_host_record(cf, host, domain,
+                                                                         zone_id_map[domain]), 'A', False
             if record_id:
                 actual_update_hosts[host] = {
                     'host': host,
@@ -129,42 +161,36 @@ def get_domain(fqdn: str) -> str:
     return f"{ext.domain}.{ext.suffix}"
 
 
-def get_tlds(host_list: List[str]) -> set:
+def get_tlds(host_list: list[str]) -> set:
     return {get_domain(host) for host in host_list}
 
 
-def update_cloudflare_dns_record(client: Cloudflare, host_record: Dict) -> bool:
-    try:
-        record = client.dns.records.update(
-            dns_record_id=host_record['record_id'],
-            zone_id=host_record['zone_id'],
-            content=host_record['content'],
-            type=host_record['type'],
-            name=host_record['name']
-        )
-        info(f"Updated DNS record for {host_record['name']} to {host_record['content']}")
-        return record is not None and getattr(record, 'success', True)
-    except Exception as e:
-        error(f"Error updating DNS record for {host_record['name']}: {e}")
-        return False
-
-def create_cloudflare_dns_record(client: Cloudflare, host_record: Dict) -> bool:
-    try:
-        record = client.dns.records.create(
-            zone_id=host_record['zone_id'],
-            type=host_record['type'],
-            name=host_record['name'],
-            content=host_record['content'],
-            proxied=host_record['proxied']
-        )
-        info(f"Created DNS record for {host_record['name']} with content {host_record['content']}")
-        return record is not None and getattr(record, 'success', True)
-    except Exception as e:
-        error(f"Error creating DNS record for {host_record['name']}: {e}")
-        return False
-
 def update_dns_records(api_token: str, api_key: str, api_email: str, actual_update_hosts: dict) -> bool:
+    """
+    Updates DNS records in Cloudflare if the external IP has changed.
 
+    Args:
+        api_token (str): Cloudflare API token for authentication
+        api_key (str): Cloudflare API key for authentication
+        api_email (str): Email associated with Cloudflare account
+        actual_update_hosts (dict): Dictionary containing host records to update with structure:
+            {
+                'host_name': {
+                    'record_id': str,
+                    'zone_id': str,
+                    'record_type': str,
+                    'host': str,
+                    'proxied': bool
+                }
+            }
+
+    Returns:
+        bool: True if all records were updated successfully, False otherwise
+
+    Note:
+        The function checks if the external IP has changed before attempting any updates.
+        If the IP hasn't changed, it returns True without making any API calls.
+    """
     global previous_ip
 
     external_ip = get_external_ip()
@@ -175,7 +201,6 @@ def update_dns_records(api_token: str, api_key: str, api_email: str, actual_upda
     if (external_ip == previous_ip):
         info("External IP has not changed, skipping DNS update.")
         return True
-
 
     cf = Cloudflare(api_token=api_token, api_email=api_email, api_key=api_key)
     results = []
@@ -207,9 +232,9 @@ def get_env_var(name: str, default: Optional[str] = None) -> str:
 
 def save_current_ip(ip: str):
     """Save current IP as previous a file."""
-    global previous_ip, previous_ip_filename
+    global previous_ip, PREVIOUS_IP_FILENAME
     if ip != previous_ip:
-        with open('/app/previous_ip.txt', 'w') as f:
+        with open(PREVIOUS_IP_FILENAME, 'w') as f:
             f.write(ip)
         previous_ip = ip
         info(f"Previous IP updated to {ip}")
@@ -219,13 +244,26 @@ def save_current_ip(ip: str):
 
 def load_previous_ip() -> str:
     """Load previous IP from file."""
-    global previous_ip, previous_ip_filename
-    if os.path.exists(previous_ip_filename):
-        with open(previous_ip_filename, 'r') as f:
+    global previous_ip, PREVIOUS_IP_FILENAME
+    check_ip_file_folder()
+    if os.path.exists(PREVIOUS_IP_FILENAME):
+        with open(PREVIOUS_IP_FILENAME, 'r') as f:
             previous_ip = f.read().strip()
     else:
-        save_current_ip('invalid')
+        save_current_ip(default_ip)
     return previous_ip
+
+
+def check_ip_file_folder():
+    """Ensure the logs directory exists and the previous IP file is created."""
+    global PREVIOUS_IP_FILENAME
+    log_dir = os.path.dirname(PREVIOUS_IP_FILENAME)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+    if not os.path.exists(PREVIOUS_IP_FILENAME):
+        with open(PREVIOUS_IP_FILENAME, 'w') as f:
+            f.write(default_ip)
+        info(f"Created {PREVIOUS_IP_FILENAME} with default IP {default_ip}")
 
 
 def main():
@@ -282,4 +320,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # noinspection SpellCheckingInspection
+    sys.tracebacklimit = 0
     main()
