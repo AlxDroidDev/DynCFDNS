@@ -17,9 +17,9 @@ info = logger.info
 warn = logger.warning
 error = logger.error
 
-previous_ip: str = '0.0.0.0'
-previous_ip_filename = './logs/previous_ip.txt'
-
+default_ip: str = '10.0.0.254'  # Default placeholder IP
+previous_ip: str = ''
+PREVIOUS_IP_FILENAME: str = 'logs/previous_ip.txt'
 NOT_FOUND: str = 'Not Found'
 
 
@@ -98,6 +98,22 @@ def create_new_host_record(cf: Cloudflare, host: str, domain: str, zone_id: str)
         return None
 
 
+def update_cloudflare_dns_record(client: Cloudflare, host_record: dict) -> bool:
+    try:
+        record = client.dns.records.update(
+            dns_record_id=host_record['record_id'],
+            zone_id=host_record['zone_id'],
+            content=host_record['content'],
+            type=host_record['type'],
+            name=host_record['name']
+        )
+        info(f"Updated DNS record for {host_record['name']} to {host_record['content']}")
+        return record is not None and getattr(record, 'success', True)
+    except Exception as e:
+        error(f"Error updating DNS record for {host_record['name']}: {e}")
+        return False
+
+
 def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_list: list[str],
                            allow_create_hosts: bool = False) -> dict:
     cf = Cloudflare(api_token=api_token, api_email=api_email, api_key=api_key)
@@ -149,39 +165,32 @@ def get_tlds(host_list: list[str]) -> set:
     return {get_domain(host) for host in host_list}
 
 
-def update_cloudflare_dns_record(client: Cloudflare, host_record: dict) -> bool:
-    try:
-        record = client.dns.records.update(
-            dns_record_id=host_record['record_id'],
-            zone_id=host_record['zone_id'],
-            content=host_record['content'],
-            type=host_record['type'],
-            name=host_record['name']
-        )
-        info(f"Updated DNS record for {host_record['name']} to {host_record['content']}")
-        return record is not None and getattr(record, 'success', True)
-    except Exception as e:
-        error(f"Error updating DNS record for {host_record['name']}: {e}")
-        return False
-
-
-def create_cloudflare_dns_record(client: Cloudflare, host_record: dict) -> bool:
-    try:
-        record = client.dns.records.create(
-            zone_id=host_record['zone_id'],
-            type=host_record['type'],
-            name=host_record['name'],
-            content=host_record['content'],
-            proxied=host_record['proxied']
-        )
-        info(f"Created DNS record for {host_record['name']} with content {host_record['content']}")
-        return record is not None and getattr(record, 'success', True)
-    except Exception as e:
-        error(f"Error creating DNS record for {host_record['name']}: {e}")
-        return False
-
-
 def update_dns_records(api_token: str, api_key: str, api_email: str, actual_update_hosts: dict) -> bool:
+    """
+    Updates DNS records in Cloudflare if the external IP has changed.
+
+    Args:
+        api_token (str): Cloudflare API token for authentication
+        api_key (str): Cloudflare API key for authentication
+        api_email (str): Email associated with Cloudflare account
+        actual_update_hosts (dict): Dictionary containing host records to update with structure:
+            {
+                'host_name': {
+                    'record_id': str,
+                    'zone_id': str,
+                    'record_type': str,
+                    'host': str,
+                    'proxied': bool
+                }
+            }
+
+    Returns:
+        bool: True if all records were updated successfully, False otherwise
+
+    Note:
+        The function checks if the external IP has changed before attempting any updates.
+        If the IP hasn't changed, it returns True without making any API calls.
+    """
     global previous_ip
 
     external_ip = get_external_ip()
@@ -223,9 +232,9 @@ def get_env_var(name: str, default: Optional[str] = None) -> str:
 
 def save_current_ip(ip: str):
     """Save current IP as previous a file."""
-    global previous_ip, previous_ip_filename
+    global previous_ip, PREVIOUS_IP_FILENAME
     if ip != previous_ip:
-        with open(previous_ip_filename, 'w') as f:
+        with open(PREVIOUS_IP_FILENAME, 'w') as f:
             f.write(ip)
         previous_ip = ip
         info(f"Previous IP updated to {ip}")
@@ -235,13 +244,26 @@ def save_current_ip(ip: str):
 
 def load_previous_ip() -> str:
     """Load previous IP from file."""
-    global previous_ip, previous_ip_filename
-    if os.path.exists(previous_ip_filename):
-        with open(previous_ip_filename, 'r') as f:
+    global previous_ip, PREVIOUS_IP_FILENAME
+    check_ip_file_folder()
+    if os.path.exists(PREVIOUS_IP_FILENAME):
+        with open(PREVIOUS_IP_FILENAME, 'r') as f:
             previous_ip = f.read().strip()
     else:
-        save_current_ip('invalid')
+        save_current_ip(default_ip)
     return previous_ip
+
+
+def check_ip_file_folder():
+    """Ensure the logs directory exists and the previous IP file is created."""
+    global PREVIOUS_IP_FILENAME
+    log_dir = os.path.dirname(PREVIOUS_IP_FILENAME)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+    if not os.path.exists(PREVIOUS_IP_FILENAME):
+        with open(PREVIOUS_IP_FILENAME, 'w') as f:
+            f.write(default_ip)
+        info(f"Created {PREVIOUS_IP_FILENAME} with default IP {default_ip}")
 
 
 def main():
