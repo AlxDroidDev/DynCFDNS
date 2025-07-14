@@ -1,4 +1,6 @@
+Flask~=3.1.1
 logging~=0.4.9.6
 httpx~=0.28.1
 tldextract~=5.3.0
 cloudflare~=4.3.1
+waitress~=3.0.2

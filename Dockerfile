@@ -2,7 +2,7 @@ FROM python:3.13-alpine3.22
 
 WORKDIR /app
 
-COPY main.py globals.py healthcheck.py requirements.txt LICENSE README.md ./
+COPY main.py cfupdater.py api.py globals.py healthcheck.py requirements.txt LICENSE README.md ./
 
 ENV USER=cfuser
 ENV GROUPNAME=$USER \
