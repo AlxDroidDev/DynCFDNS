@@ -1,0 +1,20 @@
+- DNS Management:
+    - DynCFDNS:
+        icon: cloudflare.png
+        href: http://localhost:5000
+        description: Dynamic CloudFlare DNS updater
+        widget:
+          type: customapi
+          url: http://localhost:5000/status
+          mappings:
+            - field: last_check
+              label: Last Check
+              format: relativeDate
+            - field: last_update
+              label: Last Update
+              format: relativeDate
+            - field:
+                updatable_hosts: length
+              label: Hosts Count
+            - field: previous_ip
+              label: Current IP

@@ -55,12 +55,13 @@ This project was started in July 2025.
 - Minimal Docker image
 - Healthcheck included for monitoring
 - Allow for the automatic creation of new DNS records if they do not exist
+- (WIP) API for monitoring DynCFDNS status and updates (for example, to use in homepage.dev)
 
 ## Future Enhancements:
 
 - Support for IPv6 addresses
 - Integration with other DNS providers (AWS Route 53, DigitalOcean, Azure, GCP, etc.)
-- Web interface for configuration and monitoring
+- Web interface for configuration and monitoring (WIP)
 - Notification system for update failures
 
 ##  Prerequisites
@@ -71,14 +72,15 @@ This project was started in July 2025.
 
 ## Environment Variables
 
-| Variable               | Description                                                         | Required | Default | Example                               |
-|------------------------|---------------------------------------------------------------------|:--------:|:-------:|---------------------------------------|
-| `HOST_LIST`            | Comma-separated list of hostnames to update                         |    ✔️    |    -    | `home.example.com,server.example.com` |
-| `CLOUDFLARE_API_TOKEN` | CloudFlare API Token                                                |    ✔️    |    -    | `your_api_token_here`                 |
-| `CLOUDFLARE_API_KEY`   | CloudFlare Global API Key                                           |    ✔️    |    -    | `your_api_key_here`                   |
-| `CLOUDFLARE_API_EMAIL` | CloudFlare account email                                            |    ✔️    |    -    | `your-email@example.com`              |
-| `UPDATE_INTERVAL`      | Update interval in minutes                                          |    ✖️    |  `60`   | `30`                                  |
-| `ALLOW_CREATE_HOSTS`   | Automatically create hosts in the given domain if they do not exist |    ✖️    | `false` | `true`                                |
+| Variable               | Description                                                                  | Required | Default | Example                              |
+|------------------------|------------------------------------------------------------------------------|:--------:|:-------:|--------------------------------------|
+| `HOST_LIST`            | Comma-separated list of hostnames to update                                  |    ✔️    |    -    | `home.example.com,server.example.com` |
+| `CLOUDFLARE_API_TOKEN` | CloudFlare API Token                                                         |    ✔️    |    -    | `your_api_token_here`                |
+| `CLOUDFLARE_API_KEY`   | CloudFlare Global API Key                                                    |    ✔️    |    -    | `your_api_key_here`                  |
+| `CLOUDFLARE_API_EMAIL` | CloudFlare account email                                                     |    ✔️    |    -    | `your-email@example.com`             |
+| `UPDATE_INTERVAL`      | Update interval in minutes                                                   |    ✖️    |  `60`   | `30`                                 |
+| `ALLOW_CREATE_HOSTS`   | Automatically create hosts in the given domain if they do not exist          |    ✖️    | `false` | `true`                               |
+| `API_PORT`             | TCP port where the monitoring API will listen. Values <= 0 disable the API. |    ✖️    | `5000`  | `8101`                               |
 
 
 ### Getting CloudFlare Credentials
