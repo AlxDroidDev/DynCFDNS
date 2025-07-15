@@ -1,9 +1,10 @@
+import logging
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from cfupdater import last_check, last_update, updatable_hosts, previous_ip
+from cfupdater import get_updatable_hosts, get_last_update, get_previous_ip, get_last_check
 from globals import API_PORT, UPDATE_INTERVAL
 
 app = FastAPI(title="DynCFDNS API", version="1.0.0")
@@ -19,6 +20,7 @@ def format_datetime_iso8859(dt):
 
 
 def is_status_good() -> bool:
+    last_check = get_last_check()
     return last_check and (datetime.now() - last_check).total_seconds() <= (UPDATE_INTERVAL + 15)
 
 
@@ -26,17 +28,20 @@ def is_status_good() -> bool:
 async def get_widget_data():
     """Return simplified data for homepage widget."""
     try:
-        host_count = len(updatable_hosts) if updatable_hosts else 0
-        hosts = '\n'.join([host for host in updatable_hosts if host])
 
+        valid_hosts = get_updatable_hosts()
+
+        host_count = len(valid_hosts) if valid_hosts else 0
+        hosts = '\n'.join([host for host in valid_hosts if host])
         is_active = 'active' if is_status_good() else 'unhealthy'
 
+
         response_data = {
-            'last_check': format_datetime_iso8859(last_check),
-            'last_update': format_datetime_iso8859(last_update),
+            'last_check': format_datetime_iso8859(get_last_check()) or "Never",
+            'last_update': format_datetime_iso8859(get_last_update()) or "Never",
             'host_count': host_count,
-            'hosts': hosts if updatable_hosts else 'None',
-            'current_ip': previous_ip or 'Unknown',
+            'hosts': hosts if valid_hosts else 'None',
+            'current_ip': get_previous_ip() or 'Unknown',
             'status': is_active
         }
 
@@ -56,7 +61,7 @@ async def health_check():
         return {"status": "ok"}
     else:
         return JSONResponse(
-            content={"status": "unhealthy", "last_check": format_datetime_iso8859(last_check)},
+            content={"status": "unhealthy", "last_check": (format_datetime_iso8859(get_last_check()) or 'Never')},
             status_code=503
         )
 

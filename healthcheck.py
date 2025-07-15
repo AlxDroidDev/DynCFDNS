@@ -5,41 +5,44 @@ import sys
 import json
 from datetime import datetime, timedelta
 from globals import UPDATE_INTERVAL
+import tempfile
 
-HEALTH_FILE = "/tmp/dyncfdns_health.json"
+HEALTH_FILE: str = "dyncfdns_health.json"
+HEALTH_FILE_FULL_PATH: str = os.path.join(tempfile.gettempdir(), HEALTH_FILE)
 
-
-def write_health_status():
+def write_health_status(last_check: datetime = datetime.now()) -> bool:
     """Write current timestamp to health file."""
     try:
         health_data = {
-            'last_update': datetime.now().isoformat(),
+            'last_check': last_check.isoformat(),
             'status': 'running'
         }
-        with open(HEALTH_FILE, 'w') as f:
+        with open(HEALTH_FILE_FULL_PATH, 'w') as f:
             json.dump(health_data, f)
         return True
-    except Exception:
+    except Exception as e:
+        sys.stderr.write(f"Failed to write health status to file:\n{e}")
         return False
 
 def check_health():
     """Check if the main process is healthy based on heartbeat file."""
     try:
-        if not os.path.exists(HEALTH_FILE):
+        if not os.path.exists(HEALTH_FILE_FULL_PATH):
             return False
 
-        with open(HEALTH_FILE, 'r') as f:
+        with open(HEALTH_FILE_FULL_PATH, 'r') as f:
             health_data = json.load(f)
 
-        last_update = datetime.fromisoformat(health_data['last_update'])
+        last_check = datetime.fromisoformat(health_data['last_check'])
         current_time = datetime.now()
 
-        if current_time - last_update > timedelta(seconds=UPDATE_INTERVAL+15): # Allow a 15-second grace period
+        if current_time - last_check > timedelta(seconds=UPDATE_INTERVAL+15): # Allow a 15-second grace period
             return False
 
         return True
 
-    except Exception:
+    except Exception as e:
+        sys.stderr.write(f"Failed to write health status to file:\n{e}")
         return False
 
 

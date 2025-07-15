@@ -11,6 +11,7 @@ from cloudflare import Cloudflare
 
 from globals import UPDATE_INTERVAL
 from healthcheck import write_health_status
+from threading import Lock
 
 logger = logging.getLogger("DynCloudflareDNS")
 
@@ -25,7 +26,10 @@ NOT_FOUND: str = 'Not Found'
 
 last_check: Optional[datetime] = None
 last_update: Optional[datetime] = None
-updatable_hosts: Optional[dict] = None
+
+
+thread_safe_lock : Lock = Lock()
+updatable_hosts : dict = {} # Dictionary to hold hosts that can be updated
 
 def configure_logging():
     # Create logs directory if it doesn't exist
@@ -136,7 +140,7 @@ def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_li
         error("No matching zones found for the provided host list.")
         return {}
 
-    actual_update_hosts = {}
+    valid_updatable_hosts: dict = {}
     for host in host_list:
         domain = get_domain(host)
         if domain in zone_id_map:
@@ -145,7 +149,7 @@ def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_li
                 record_id, record_type, proxied = create_new_host_record(cf, host, domain,
                                                                          zone_id_map[domain]), 'A', False
             if record_id:
-                actual_update_hosts[host] = {
+                valid_updatable_hosts[host] = {
                     'host': host,
                     'domain': domain,
                     'zone_id': zone_id_map[domain],
@@ -157,7 +161,7 @@ def assemble_hosts_records(api_token: str, api_key: str, api_email: str, host_li
                 warn(f"No DNS record found for {host} in zone {zone_id_map[domain]}")
         else:
             warn(f"Domain {domain} not found in Cloudflare zones for host {host}")
-    return actual_update_hosts
+    return valid_updatable_hosts
 
 
 def get_domain(fqdn: str) -> str:
@@ -203,7 +207,7 @@ def update_dns_records(api_token: str, api_key: str, api_email: str, actual_upda
         error("Could not retrieve external IP address.")
         return result
 
-    if (external_ip == previous_ip):
+    if external_ip == previous_ip:
         info("External IP has not changed, skipping DNS update.")
         return True
 
@@ -274,6 +278,38 @@ def check_ip_file_folder():
         info(f"Created {PREVIOUS_IP_FILENAME} with default IP {default_ip}")
 
 
+def get_updatable_hosts() -> dict:
+    """Thread-safe function to retrieve the updatable hosts dictionary.
+    Used by the API to provide current host information.
+    """
+    with thread_safe_lock:
+        global updatable_hosts
+        return updatable_hosts
+
+def get_last_check() -> Optional[datetime]:
+    """Thread-safe function to retrieve the last check timestamp.
+    Used by the API to provide current health status.
+    """
+    with thread_safe_lock:
+        global last_check
+        return last_check
+
+def get_last_update() -> Optional[datetime]:
+    """Thread-safe function to retrieve the last update timestamp.
+    Used by the API to provide current update status.
+    """
+    with thread_safe_lock:
+        global last_update
+        return last_update
+
+def get_previous_ip() -> str:
+    """Thread-safe function to retrieve the last saved IP address.
+    Used by the API to provide current IP information.
+    """
+    with thread_safe_lock:
+        global previous_ip
+        return previous_ip
+
 def main():
 
     load_previous_ip()
@@ -298,25 +334,29 @@ def main():
         error(f"Configuration error: {e}")
         return
 
-    updatable_hosts = assemble_hosts_records(api_token, api_key, api_email, host_list, allow_create_hosts)
+    with thread_safe_lock:
+        updatable_hosts = assemble_hosts_records(api_token, api_key, api_email, host_list, allow_create_hosts)
 
     if not updatable_hosts:
         error("No valid hosts found to monitor. Exiting.")
         return
 
     info(f"Starting DNS update service. Will update every {UPDATE_INTERVAL} seconds.")
-    info(f"Monitoring hosts: {list(updatable_hosts.keys())}")
+    with thread_safe_lock:
+        info(f"Monitoring hosts: {list(updatable_hosts.keys())}")
 
     while True:
         try:
             info(f"Updating DNS records at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-            success = update_dns_records(api_token, api_key, api_email, updatable_hosts)
+            with thread_safe_lock:
+                success = update_dns_records(api_token, api_key, api_email, updatable_hosts)
 
             if success:
                 info("All DNS records updated successfully!")
             else:
                 warn("Some DNS record updates failed.")
-            write_health_status()
+            with thread_safe_lock:
+                write_health_status(last_check)
             info(f"Next check in {UPDATE_INTERVAL} seconds...")
             time.sleep(UPDATE_INTERVAL)
 
@@ -327,7 +367,6 @@ def main():
             error(f"Unexpected error during DNS update: {e}")
             info(f"Retrying in {UPDATE_INTERVAL} seconds...")
             time.sleep(UPDATE_INTERVAL)
-
 
 # if __name__ == "__main__":
 #     # noinspection SpellCheckingInspection

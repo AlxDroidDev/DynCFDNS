@@ -2,7 +2,7 @@ FROM python:3.13-alpine3.22
 
 WORKDIR /app
 
-COPY main.py cfupdater.py api.py globals.py healthcheck.py requirements.txt LICENSE README.md ./
+COPY api.py cfupdater.py globals.py healthcheck.py main.py requirements.txt LICENSE README.md ./
 
 ENV USER=cfuser
 ENV GROUPNAME=$USER \
@@ -12,7 +12,9 @@ ENV GROUPNAME=$USER \
     APP_VERSION='1.0.0' \
     CLOUDFLARE_API_EMAIL="" \
     HOST_LIST="" \
-    UPDATE_INTERVAL=120
+    UPDATE_INTERVAL=120 \
+    API_PORT=5000 \
+    ALLOW_CREATE_HOSTS=false
 
 
 RUN addgroup --gid "$GID" "$GROUPNAME" && \
