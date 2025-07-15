@@ -85,3 +85,4 @@ def start_api():
     if API_PORT <= 0:
         return
     uvicorn.run(app, host="0.0.0.0", port=API_PORT, access_log=False)
+

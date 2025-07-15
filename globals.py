@@ -17,7 +17,7 @@ def get_update_interval() -> int:
 def get_api_port() -> int:
     """Get the API port from environment variable or default to 5000."""
     try:
-        return max(1, int(os.getenv('API_PORT', '5000')))
+        return max(0, int(os.getenv('API_PORT', '5000')))
     except ValueError:
         logging.warn("Expected API_PORT to be a valid integer. Using default value of 5000.")
         return 5000
@@ -25,7 +25,7 @@ def get_api_port() -> int:
 def get_api_token() -> str:
     """Get the API token from environment variable, config file, or generate a new one."""
     # Check if API is disabled
-    if API_PORT <= 0:
+    if API_PORT <= 1:
         return ''
 
     # Try to get token from environment variable
@@ -42,7 +42,7 @@ def get_api_token() -> str:
     random_bytes = token_bytes(32)
     token = b64encode(random_bytes).decode('utf-8')
     save_attribute_to_config('api_token', token)
-    print(f"Generated new API token: {token}")
+    print(f"\nThe internal API is enabled, but a valid token could not be found.\nA new API token has been generated:\n\n{'*'*60}\n{token:^60}\n{'*'*60}\n\n")
 
     return token
 
