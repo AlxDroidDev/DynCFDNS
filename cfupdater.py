@@ -1,17 +1,16 @@
-from datetime import datetime
 import logging
 import os
-import sys
 import time
+from datetime import datetime
+from threading import Lock
 from typing import Optional, Tuple
 
 import httpx
 import tldextract
 from cloudflare import Cloudflare
 
-from globals import UPDATE_INTERVAL
+from globals import UPDATE_INTERVAL, NOT_FOUND, KEY_PREVIOUS_IP, load_attribute_from_config, save_attribute_to_config
 from healthcheck import write_health_status
-from threading import Lock
 
 logger = logging.getLogger("DynCloudflareDNS")
 
@@ -19,17 +18,21 @@ info = logger.info
 warn = logger.warning
 error = logger.error
 
-default_ip: str = '10.0.0.254'  # Default placeholder IP
-previous_ip: str = ''
+__default_ip: str = '10.0.0.254'  # Default placeholder IP
+__previous_ip: str = ''
 PREVIOUS_IP_FILENAME: str = 'logs/previous_ip.txt'
-NOT_FOUND: str = 'Not Found'
 
-last_check: Optional[datetime] = None
-last_update: Optional[datetime] = None
+__last_check: Optional[datetime] = None
+__last_update: Optional[datetime] = None
+__updatable_hosts: dict = {}  # Dictionary to hold hosts that can be updated
 
 
-thread_safe_lock : Lock = Lock()
-updatable_hosts : dict = {} # Dictionary to hold hosts that can be updated
+# Thread-safe lock for shared resources
+# This is an important thing: this Lock is necessary because some of these
+# global variables are accessed by both the main thread and the API thread.
+# The simple correct way to ensure both can access them safely is to use a lock.
+thread_safe_lock: Lock = Lock()
+
 
 def configure_logging():
     # Create logs directory if it doesn't exist
@@ -90,7 +93,7 @@ def create_new_host_record(cf: Cloudflare, host: str, domain: str, zone_id: str)
             zone_id=zone_id,
             type='A',
             name=f'{host}',
-            content=previous_ip,  # Placeholder IP, will be updated later
+            content=__previous_ip,  # Placeholder IP, will be updated later
             proxied=False,
             ttl=UPDATE_INTERVAL
         )
@@ -199,15 +202,15 @@ def update_dns_records(api_token: str, api_key: str, api_email: str, actual_upda
         The function checks if the external IP has changed before attempting any updates.
         If the IP hasn't changed, it returns True without making any API calls.
     """
-    global previous_ip, last_check, last_update
+    global __previous_ip, __last_check, __last_update
     result = False
     external_ip = get_external_ip()
-    last_check = datetime.now()
+    __last_check = datetime.now()
     if not external_ip:
         error("Could not retrieve external IP address.")
         return result
 
-    if external_ip == previous_ip:
+    if external_ip == __previous_ip:
         info("External IP has not changed, skipping DNS update.")
         return True
 
@@ -225,7 +228,7 @@ def update_dns_records(api_token: str, api_key: str, api_email: str, actual_upda
         results.append(update_cloudflare_dns_record(cf, host_record))
     if all(results):
         save_current_ip(external_ip)
-        last_update = datetime.now()
+        __last_update = datetime.now()
         result = True
     return result
 
@@ -244,26 +247,23 @@ def get_env_var(name: str, default: Optional[str] = None) -> str:
 
 def save_current_ip(ip: str):
     """Save current IP as previous a file."""
-    global previous_ip, PREVIOUS_IP_FILENAME
-    if ip != previous_ip:
-        with open(PREVIOUS_IP_FILENAME, 'w') as f:
-            f.write(ip)
-        previous_ip = ip
-        info(f"Previous IP updated to {ip}")
+    global __previous_ip
+
+    if ip != __previous_ip:
+        if save_attribute_to_config(KEY_PREVIOUS_IP, ip):
+            __previous_ip = ip
+            info(f"Previous IP updated to {ip}")
     else:
         info("IP has not changed, no update needed.")
 
 
 def load_previous_ip() -> str:
     """Load previous IP from file."""
-    global previous_ip, PREVIOUS_IP_FILENAME
-    check_ip_file_folder()
-    if os.path.exists(PREVIOUS_IP_FILENAME):
-        with open(PREVIOUS_IP_FILENAME, 'r') as f:
-            previous_ip = f.read().strip()
-    else:
-        save_current_ip(default_ip)
-    return previous_ip
+    global __previous_ip, PREVIOUS_IP_FILENAME
+    __previous_ip = load_attribute_from_config(KEY_PREVIOUS_IP,  '')
+    if not __previous_ip:
+        save_current_ip(__default_ip)
+    return __previous_ip
 
 
 def check_ip_file_folder():
@@ -274,8 +274,8 @@ def check_ip_file_folder():
         os.makedirs(log_dir, exist_ok=True)
     if not os.path.exists(PREVIOUS_IP_FILENAME):
         with open(PREVIOUS_IP_FILENAME, 'w') as f:
-            f.write(default_ip)
-        info(f"Created {PREVIOUS_IP_FILENAME} with default IP {default_ip}")
+            f.write(__default_ip)
+        info(f"Created {PREVIOUS_IP_FILENAME} with default IP {__default_ip}")
 
 
 def get_updatable_hosts() -> dict:
@@ -283,38 +283,41 @@ def get_updatable_hosts() -> dict:
     Used by the API to provide current host information.
     """
     with thread_safe_lock:
-        global updatable_hosts
-        return updatable_hosts
+        global __updatable_hosts
+        return __updatable_hosts
+
 
 def get_last_check() -> Optional[datetime]:
     """Thread-safe function to retrieve the last check timestamp.
     Used by the API to provide current health status.
     """
     with thread_safe_lock:
-        global last_check
-        return last_check
+        global __last_check
+        return __last_check
+
 
 def get_last_update() -> Optional[datetime]:
     """Thread-safe function to retrieve the last update timestamp.
     Used by the API to provide current update status.
     """
     with thread_safe_lock:
-        global last_update
-        return last_update
+        global __last_update
+        return __last_update
+
 
 def get_previous_ip() -> str:
     """Thread-safe function to retrieve the last saved IP address.
     Used by the API to provide current IP information.
     """
     with thread_safe_lock:
-        global previous_ip
-        return previous_ip
+        global __previous_ip
+        return __previous_ip
+
 
 def main():
-
     load_previous_ip()
     configure_logging()
-    global updatable_hosts
+    global __updatable_hosts
 
     try:
         # Validate required environment variables
@@ -328,35 +331,35 @@ def main():
             error("HOST_LIST environment variable is not set.")
             return
 
-        host_list = list(set([host.strip().lower() for host in host_list_str.split(',') if host.strip()]))
+        host_list = list({host.strip().lower() for host in host_list_str.split(',') if host.strip()})
 
     except (ValueError, TypeError) as e:
         error(f"Configuration error: {e}")
         return
 
     with thread_safe_lock:
-        updatable_hosts = assemble_hosts_records(api_token, api_key, api_email, host_list, allow_create_hosts)
+        __updatable_hosts = assemble_hosts_records(api_token, api_key, api_email, host_list, allow_create_hosts)
 
-    if not updatable_hosts:
+    if not __updatable_hosts:
         error("No valid hosts found to monitor. Exiting.")
         return
 
     info(f"Starting DNS update service. Will update every {UPDATE_INTERVAL} seconds.")
     with thread_safe_lock:
-        info(f"Monitoring hosts: {list(updatable_hosts.keys())}")
+        info(f"Monitoring hosts: {list(__updatable_hosts.keys())}")
 
     while True:
         try:
             info(f"Updating DNS records at {time.strftime('%Y-%m-%d %H:%M:%S')}")
             with thread_safe_lock:
-                success = update_dns_records(api_token, api_key, api_email, updatable_hosts)
+                success = update_dns_records(api_token, api_key, api_email, __updatable_hosts)
 
             if success:
                 info("All DNS records updated successfully!")
             else:
                 warn("Some DNS record updates failed.")
             with thread_safe_lock:
-                write_health_status(last_check)
+                write_health_status(__last_check)
             info(f"Next check in {UPDATE_INTERVAL} seconds...")
             time.sleep(UPDATE_INTERVAL)
 
@@ -368,7 +371,3 @@ def main():
             info(f"Retrying in {UPDATE_INTERVAL} seconds...")
             time.sleep(UPDATE_INTERVAL)
 
-# if __name__ == "__main__":
-#     # noinspection SpellCheckingInspection
-#     sys.tracebacklimit = 0
-#     main()

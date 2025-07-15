@@ -7,6 +7,7 @@
 - [Future Enhancements:](#future-enhancements)
 - [Prerequisites](#prerequisites)
 - [Environment Variables](#environment-variables)
+- [API Endpoints](#api-endpoints)
 - [Getting CloudFlare Credentials](#getting-cloudflare-credentials)
 - [Python Installation](#python-installation)
 - [Docker Usage](#docker-usage)
@@ -55,7 +56,7 @@ This project was started in July 2025.
 - Minimal Docker image
 - Healthcheck included for monitoring
 - Allow for the automatic creation of new DNS records if they do not exist
-- (WIP) API for monitoring DynCFDNS status and updates (for example, to use in homepage.dev)
+- API for monitoring DynCFDNS status and updates (for example, to use in homepage.dev)
 
 ## Future Enhancements:
 
@@ -72,17 +73,74 @@ This project was started in July 2025.
 
 ## Environment Variables
 
-| Variable               | Description                                                                  | Required | Default | Example                              |
-|------------------------|------------------------------------------------------------------------------|:--------:|:-------:|--------------------------------------|
-| `HOST_LIST`            | Comma-separated list of hostnames to update                                  |    ✔️    |    -    | `home.example.com,server.example.com` |
-| `CLOUDFLARE_API_TOKEN` | CloudFlare API Token                                                         |    ✔️    |    -    | `your_api_token_here`                |
-| `CLOUDFLARE_API_KEY`   | CloudFlare Global API Key                                                    |    ✔️    |    -    | `your_api_key_here`                  |
-| `CLOUDFLARE_API_EMAIL` | CloudFlare account email                                                     |    ✔️    |    -    | `your-email@example.com`             |
-| `UPDATE_INTERVAL`      | Update interval in minutes                                                   |    ✖️    |  `60`   | `30`                                 |
-| `ALLOW_CREATE_HOSTS`   | Automatically create hosts in the given domain if they do not exist          |    ✖️    | `false` | `true`                               |
-| `API_PORT`             | TCP port where the monitoring API will listen. Values <= 0 disable the API. |    ✖️    | `5000`  | `8101`                               |
+| Variable               | Description                                                                 | Required |     Default      | Example                              |
+|------------------------|-----------------------------------------------------------------------------|:--------:|:----------------:|--------------------------------------|
+| `HOST_LIST`            | Comma-separated list of hostnames to update                                 |    ✔️    |        -         | `home.example.com,server.example.com` |
+| `CLOUDFLARE_API_TOKEN` | CloudFlare API Token                                                        |    ✔️    |        -         | `your_api_token_here`                |
+| `CLOUDFLARE_API_KEY`   | CloudFlare Global API Key                                                   |    ✔️    |        -         | `your_api_key_here`                  |
+| `CLOUDFLARE_API_EMAIL` | CloudFlare account email                                                    |    ✔️    |        -         | `your-email@example.com`             |
+| `UPDATE_INTERVAL`      | Update interval in seconds                                                  |    ✖️    |       `60`       | `30`                                 |
+| `ALLOW_CREATE_HOSTS`   | Automatically create hosts in the given domain if they do not exist         |    ✖️    |     `false`      | `true`                               |
+| `API_PORT`             | TCP port where the monitoring API will listen. Values <= 0 disable the API. |    ✖️    |      `5000`      | `8101`                               |
+| `API_TOKEN`            | Internal API authentication token. Auto-generated if not provided.          |    ✖️    | (auto generated) | `your_secure_token_here`             |
 
 
+## API Endpoints
+
+DynCFDNS includes a REST API for monitoring and integration with dashboard tools like homepage.dev. The /widget API endpoint requires authentication.
+
+### Authentication
+
+The API uses token-based authentication via the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:5000/widget
+``` 
+
+### Token Sources:
+
+The token used for the internal API is read in the following order: 
+
+- API_TOKEN environment variable
+- api_token attribute in ./config/.config.json
+- Auto-generated random 32-byte base64 token (saved to config file above), and printed to the logs output on the first run
+
+### To create a new API_TOKEN by yourself, use one of these bash commands:
+
+1. Using `openssl`: 
+
+    ```bash
+    export API_TOKEN=$(openssl rand -base64 32)
+    ```
+
+2. Using `/dev/urandom`:
+   ```bash
+   export API_TOKEN=$(head -c 32 /dev/urandom | base64)
+   ```
+3. Using `python`:
+   ```bash
+    export API_TOKEN=$(python -c "import os; print(os.urandom(32).hex())")
+    ```
+
+### Available Endpoints
+
+**GET** == /widget== - Returns simplified data optimized for dashboard widgets (authenticated - bearer token)
+
+**GET** == /health== - Health check endpoint (no authentication required)
+
+### Widget Response Format
+
+```json
+{
+  "last_check": "2025-07-15T10:30:32",
+  "last_update": "2025-07-15T09:18:31",
+  "host_count": 2,
+  "hosts": "home.example.com\nserver.example.com",
+  "current_ip": "172.217.28.164",
+  "status": "active"
+}
+```
+    
 ### Getting CloudFlare Credentials
 
 1. **API Token** (Required):
@@ -136,10 +194,12 @@ docker build -t dyncfdns .
 docker run -d \
   --name dyncfdns \
   --restart unless-stopped \
+  -p 5000:5000 \
   -e HOST_LIST="home.example.com,server.example.com" \
   -e CLOUDFLARE_API_TOKEN="your_api_token" \
   -e CLOUDFLARE_API_KEY="your_api_key" \
-  -e CLOUDFLARE_API_EMAIL="your-email@example.com" 
+  -e CLOUDFLARE_API_EMAIL="your-email@example.com" \
+  -e API_TOKEN="your_secure_api_token" \
   dyncfdns
 ```
 
@@ -160,6 +220,12 @@ services:
       - CLOUDFLARE_API_TOKEN=your_api_token
       - CLOUDFLARE_API_KEY=your_api_key
       - CLOUDFLARE_API_EMAIL=your-email@example.com
+      - API_TOKEN=your_secure_api_token # Optional, but recommended for API access
+    ports:
+      - "5000:5000" # Expose the API port
+    volumes:
+      - ./config:/app/config # mount a config directory
+      - ./logs:/app/logs # Optional: mount a logs directory
 ```
 
 #### Using Environment File
