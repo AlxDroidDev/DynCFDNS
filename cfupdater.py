@@ -1,7 +1,7 @@
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import Lock
 from typing import Optional, Tuple
 
@@ -205,7 +205,7 @@ def update_dns_records(api_token: str, api_key: str, api_email: str, actual_upda
     global __previous_ip, __last_check, __last_update
     result = False
     external_ip = get_external_ip()
-    __last_check = datetime.now()
+    __last_check = datetime.now(timezone.utc)
     if not external_ip:
         error("Could not retrieve external IP address.")
         return result
@@ -228,7 +228,7 @@ def update_dns_records(api_token: str, api_key: str, api_email: str, actual_upda
         results.append(update_cloudflare_dns_record(cf, host_record))
     if all(results):
         save_current_ip(external_ip)
-        __last_update = datetime.now()
+        __last_update = datetime.now(timezone.utc)
         result = True
     return result
 

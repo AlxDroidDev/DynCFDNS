@@ -2,7 +2,7 @@ FROM python:3.13-alpine3.22
 
 ARG CFUSER=cfuser
 ARG CFUID=9870
-ARG CFVERSION=1.0.0
+ARG CFVERSION=1.0.1
 
 LABEL org.opencontainers.image.authors="alxdroiddev@gmail.com"
 LABEL org.opencontainers.image.url="https://github.com/AlxDroidDev/DynCFDNS"
@@ -26,7 +26,8 @@ ENV USER=${CFUSER} \
     HOST_LIST="" \
     UPDATE_INTERVAL=120 \
     API_PORT=5000 \
-    ALLOW_CREATE_HOSTS=false
+    ALLOW_CREATE_HOSTS=false \
+    PATH="$PATH:/app/.local/bin"
 
 # The apk update & upgrade are required in order to remove the CVE appointments related to libssl3
 # They do increase the image size, but they are necessary for security reasons.

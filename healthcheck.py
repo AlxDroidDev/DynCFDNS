@@ -3,14 +3,14 @@
 import os
 import sys
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from globals import UPDATE_INTERVAL
 import tempfile
 
 HEALTH_FILE: str = "dyncfdns_health.json"
 HEALTH_FILE_FULL_PATH: str = os.path.join(tempfile.gettempdir(), HEALTH_FILE)
 
-def write_health_status(last_check: datetime = datetime.now()) -> bool:
+def write_health_status(last_check: datetime = datetime.now(timezone.utc)) -> bool:
     """Write current timestamp to health file."""
     try:
         health_data = {
@@ -34,7 +34,7 @@ def check_health():
             health_data = json.load(f)
 
         last_check = datetime.fromisoformat(health_data['last_check'])
-        current_time = datetime.now()
+        current_time = datetime.now(timezone.utc)
 
         if current_time - last_check > timedelta(seconds=UPDATE_INTERVAL+15): # Allow a 15-second grace period
             return False

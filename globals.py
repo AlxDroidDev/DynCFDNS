@@ -31,6 +31,7 @@ def get_api_token() -> str:
     # Try to get token from environment variable
     token = os.getenv('API_TOKEN', '')
     if token:
+        save_attribute_to_config('api_token', token)
         return token
 
     # Try to get token from config file
