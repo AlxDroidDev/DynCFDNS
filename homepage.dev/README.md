@@ -24,7 +24,7 @@ export API_TOKEN="your_custom_token_here"
 
 ### 2. Configure Homepage.dev Service
 
-Add this configuration to your homepage.dev `services.yaml`:
+Add this configuration to your homepage.dev `services.yaml`. It uses the `customapi` widget type to fetch data from DynCFDNS API, and it allows you to customize the displayed fields.
 
 ```yaml
 - DNS Management:
@@ -41,12 +41,13 @@ Add this configuration to your homepage.dev `services.yaml`:
             - field: last_check
               label: Last Check
               format: relativeDate
+            - field: last_update
+              label: Last Update
+              format: relativeDate
             - field: host_count
               label: Managed Hosts
             - field: current_ip
               label: Current IP
-            - field: status
-              label: Status
 ```
 
 ### 3. Widget Data Format
@@ -65,28 +66,6 @@ The `/widget` endpoint returns data in this format:
 ```
 
 ## Advanced Configuration
-
-### Custom Mappings
-
-You can customize which fields to display:
-
-```yaml
-widget:
-  type: customapi
-  url: http://your-dyncfdns-host:5000/widget
-  headers:
-    Authorization: Bearer YOUR_API_TOKEN_HERE
-  mappings:
-    - field: status
-      label: Service Status
-    - field: current_ip
-      label: External IP
-    - field: last_update
-      label: Last DNS Update
-      format: relativeDate
-    - field: hosts
-      label: Managed Domains
-```
 
 ### Multiple Instances
 
