@@ -94,3 +94,9 @@ class SingletonLogger:
 
 # Global logger instance
 logger = SingletonLogger()
+
+info = logger.info
+warn = logger.warning
+error = logger.error
+critical = logger.critical
+debug = logger.debug

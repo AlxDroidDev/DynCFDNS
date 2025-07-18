@@ -1,7 +1,8 @@
 import os
-import logging
 from secrets import token_bytes
 from base64 import b64encode
+from singleton_logger import info, warn, error
+
 
 __CONFIG_PATH     : str = './config/.config.json'
 
@@ -11,7 +12,7 @@ def get_update_interval() -> int:
     try:
         return max(1, int(os.getenv('UPDATE_INTERVAL', '120')))
     except ValueError:
-        logging.warn("Expected UPDATE_INTERVAL to be a valid integer. Using default value of 2 minutes.")
+        warn("Expected UPDATE_INTERVAL to be a valid integer. Using default value of 2 minutes.")
         return 120
 
 def get_api_port() -> int:
@@ -19,8 +20,8 @@ def get_api_port() -> int:
     try:
         return max(0, int(os.getenv('API_PORT', '5000')))
     except ValueError:
-        logging.warn("Expected API_PORT to be a valid integer. Using default value of 5000.")
-        return 5000
+        warn("API_PORT is set but is not a valid integer. Disabling API.")
+        return 0
 
 def get_api_token() -> str:
     """Get the API token from environment variable, config file, or generate a new one."""
@@ -43,7 +44,7 @@ def get_api_token() -> str:
     random_bytes = token_bytes(32)
     token = b64encode(random_bytes).decode('utf-8')
     save_attribute_to_config('api_token', token)
-    print(f"\nThe internal API is enabled, but a valid token could not be found.\nA new API token has been generated:\n\n{'*'*60}\n{token:^60}\n{'*'*60}\n\n")
+    info(f"\nThe internal API is enabled, but a valid token could not be found.\nA new API token has been generated:\n\n{'*'*60}\n{token:^60}\n{'*'*60}\n\n")
 
     return token
 
@@ -71,7 +72,7 @@ def save_attribute_to_config(attribute: str, value: str) -> bool:
             json.dump(config, f, indent=2)
         return True
     except IOError as e:
-        logging.warning(f"Could not save {attribute} to config file: {e}")
+        warn(f"Could not save {attribute} to config file: {e}")
         return False
 
 def load_attribute_from_config(attribute: str, default: str='') -> str:
@@ -83,7 +84,7 @@ def load_attribute_from_config(attribute: str, default: str='') -> str:
                 config = json.load(f)
                 return config.get(attribute, '')
     except (json.JSONDecodeError, IOError) as e:
-        logging.warning(f"Could not read {attribute} from config file: {e}")
+        warn(f"Could not read {attribute} from config file: {e}")
     return default
 
 

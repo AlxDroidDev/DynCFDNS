@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from globals import UPDATE_INTERVAL
 import tempfile
+from singleton_logger import error
 
 HEALTH_FILE: str = "dyncfdns_health.json"
 HEALTH_FILE_FULL_PATH: str = os.path.join(tempfile.gettempdir(), HEALTH_FILE)
@@ -21,7 +22,7 @@ def write_health_status(last_check: datetime = datetime.now(timezone.utc)) -> bo
             json.dump(health_data, f)
         return True
     except Exception as e:
-        sys.stderr.write(f"Failed to write health status to file:\n{e}")
+        error(f"Failed to write health status to file:\n{e}")
         return False
 
 def check_health():
@@ -42,7 +43,7 @@ def check_health():
         return True
 
     except Exception as e:
-        sys.stderr.write(f"Failed to write health status to file:\n{e}")
+        error(f"Failed to write health status to file:\n{e}")
         return False
 
 

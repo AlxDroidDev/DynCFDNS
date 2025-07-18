@@ -1,4 +1,3 @@
-import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -11,12 +10,7 @@ from cloudflare import Cloudflare
 
 from globals import UPDATE_INTERVAL, NOT_FOUND, KEY_PREVIOUS_IP, load_attribute_from_config, save_attribute_to_config
 from healthcheck import write_health_status
-
-logger = logging.getLogger("DynCloudflareDNS")
-
-info = logger.info
-warn = logger.warning
-error = logger.error
+from singleton_logger import info, warn, error
 
 __default_ip: str = '10.0.0.254'  # Default placeholder IP
 __previous_ip: str = ''
@@ -26,35 +20,11 @@ __last_check: Optional[datetime] = None
 __last_update: Optional[datetime] = None
 __updatable_hosts: dict = {}  # Dictionary to hold hosts that can be updated
 
-
 # Thread-safe lock for shared resources
 # This is an important thing: this Lock is necessary because some of these
 # global variables are accessed by both the main thread and the API thread.
 # The simple correct way to ensure both can access them safely is to use a lock.
 thread_safe_lock: Lock = Lock()
-
-
-def configure_logging():
-    # Create logs directory if it doesn't exist
-    log_dir = "/app/logs"
-    os.makedirs(log_dir, exist_ok=True)
-
-    # Create formatters
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-
-    # Create console handler (stderr)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-
-    # Create file handler
-    file_handler = logging.FileHandler("/app/logs/dyncfdns.log")
-    file_handler.setFormatter(formatter)
-
-    # Configure root logger
-    logging.basicConfig(
-        level=logging.INFO,
-        handlers=[console_handler, file_handler]
-    )
 
 
 def get_external_ip() -> Optional[str]:
@@ -260,7 +230,7 @@ def save_current_ip(ip: str):
 def load_previous_ip() -> str:
     """Load previous IP from file."""
     global __previous_ip, PREVIOUS_IP_FILENAME
-    __previous_ip = load_attribute_from_config(KEY_PREVIOUS_IP,  '')
+    __previous_ip = load_attribute_from_config(KEY_PREVIOUS_IP, '')
     if not __previous_ip:
         save_current_ip(__default_ip)
     return __previous_ip
@@ -316,7 +286,6 @@ def get_previous_ip() -> str:
 
 def main():
     load_previous_ip()
-    configure_logging()
     global __updatable_hosts
 
     try:
@@ -344,7 +313,7 @@ def main():
         error("No valid hosts found to monitor. Exiting.")
         return
 
-    info(f"Starting DNS update service. Will update every {UPDATE_INTERVAL} seconds.")
+    info(f"Starting DNS update service. Will check every {UPDATE_INTERVAL} seconds and update if required.")
     with thread_safe_lock:
         info(f"Monitoring hosts: {list(__updatable_hosts.keys())}")
 
@@ -370,4 +339,3 @@ def main():
             error(f"Unexpected error during DNS update: {e}")
             info(f"Retrying in {UPDATE_INTERVAL} seconds...")
             time.sleep(UPDATE_INTERVAL)
-
