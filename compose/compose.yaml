@@ -6,6 +6,10 @@ services:
     container_name: dyncfdns
     hostname: dyncfdns
     restart: unless-stopped
+    expose:
+      - 5000
+    ports:
+      - 5000:5000 # Map the API port to the host
     environment:
       - HOST_LIST=home.example.com,server.example.com
       - CLOUDFLARE_API_TOKEN=your_api_token
@@ -13,11 +17,14 @@ services:
       - CLOUDFLARE_API_EMAIL=your-email@example.com
       - UPDATE_INTERVAL=120  # OPTIONAL - Update interval in seconds (default is 120 seconds)
       - ALLOW_CREATE_HOSTS=false # OPTIONAL - Set to true if you want to allow creating new hosts via the API
+      - API_PORT=5000 # OPTIONAL - Port for the API (default is 5000)
+      - API_TOKEN=your_api_token # OPTIONAL - API token for authentication (default is empty)
     volumes:
       - logs:/app/logs # OPTIONAL: Mount a volume for logs and previous IP file
                        #           if this volume is not set, DynCFDNS will always set the
                        #           current IP as the external IP, regardless of the previous IP
                       #            Make sure the folder is writeable by the container
+      - config:/app/config
     # optional: use .env file instead of environment variables
     env_file:
       - path: ./.env
@@ -34,3 +41,4 @@ services:
 
 volumes:
   logs:
+  config:
