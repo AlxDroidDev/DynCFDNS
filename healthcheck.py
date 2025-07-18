@@ -3,43 +3,47 @@
 import os
 import sys
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from globals import UPDATE_INTERVAL
+import tempfile
+from singleton_logger import error
 
-HEALTH_FILE = "/tmp/dyncfdns_health.json"
+HEALTH_FILE: str = "dyncfdns_health.json"
+HEALTH_FILE_FULL_PATH: str = os.path.join(tempfile.gettempdir(), HEALTH_FILE)
 
-
-def write_health_status():
+def write_health_status(last_check: datetime = datetime.now(timezone.utc)) -> bool:
     """Write current timestamp to health file."""
     try:
         health_data = {
-            'last_update': datetime.now().isoformat(),
+            'last_check': last_check.isoformat(),
             'status': 'running'
         }
-        with open(HEALTH_FILE, 'w') as f:
+        with open(HEALTH_FILE_FULL_PATH, 'w') as f:
             json.dump(health_data, f)
         return True
-    except Exception:
+    except Exception as e:
+        error(f"Failed to write health status to file:\n{e}")
         return False
 
 def check_health():
     """Check if the main process is healthy based on heartbeat file."""
     try:
-        if not os.path.exists(HEALTH_FILE):
+        if not os.path.exists(HEALTH_FILE_FULL_PATH):
             return False
 
-        with open(HEALTH_FILE, 'r') as f:
+        with open(HEALTH_FILE_FULL_PATH, 'r') as f:
             health_data = json.load(f)
 
-        last_update = datetime.fromisoformat(health_data['last_update'])
-        current_time = datetime.now()
+        last_check = datetime.fromisoformat(health_data['last_check'])
+        current_time = datetime.now(timezone.utc)
 
-        if current_time - last_update > timedelta(seconds=UPDATE_INTERVAL+15): # Allow a 15-second grace period
+        if current_time - last_check > timedelta(seconds=UPDATE_INTERVAL+15): # Allow a 15-second grace period
             return False
 
         return True
 
-    except Exception:
+    except Exception as e:
+        error(f"Failed to write health status to file:\n{e}")
         return False
 
 
