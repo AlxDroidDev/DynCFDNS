@@ -24,7 +24,7 @@ __updatable_hosts: dict = {}  # Dictionary to hold hosts that can be updated
 # This is an important thing: this Lock is necessary because some of these
 # global variables are accessed by both the main thread and the API thread.
 # The simple correct way to ensure both can access them safely is to use a lock.
-thread_safe_lock: Lock = Lock()
+__thread_safe_lock: Lock = Lock()
 
 
 def get_external_ip() -> Optional[str]:
@@ -252,7 +252,7 @@ def get_updatable_hosts() -> dict:
     """Thread-safe function to retrieve the updatable hosts dictionary.
     Used by the API to provide current host information.
     """
-    with thread_safe_lock:
+    with __thread_safe_lock:
         global __updatable_hosts
         return __updatable_hosts
 
@@ -261,7 +261,7 @@ def get_last_check() -> Optional[datetime]:
     """Thread-safe function to retrieve the last check timestamp.
     Used by the API to provide current health status.
     """
-    with thread_safe_lock:
+    with __thread_safe_lock:
         global __last_check
         return __last_check
 
@@ -270,7 +270,7 @@ def get_last_update() -> Optional[datetime]:
     """Thread-safe function to retrieve the last update timestamp.
     Used by the API to provide current update status.
     """
-    with thread_safe_lock:
+    with __thread_safe_lock:
         global __last_update
         return __last_update
 
@@ -279,7 +279,7 @@ def get_previous_ip() -> str:
     """Thread-safe function to retrieve the last saved IP address.
     Used by the API to provide current IP information.
     """
-    with thread_safe_lock:
+    with __thread_safe_lock:
         global __previous_ip
         return __previous_ip
 
@@ -306,7 +306,7 @@ def main():
         error(f"Configuration error: {e}")
         return
 
-    with thread_safe_lock:
+    with __thread_safe_lock:
         __updatable_hosts = assemble_hosts_records(api_token, api_key, api_email, host_list, allow_create_hosts)
 
     if not __updatable_hosts:
@@ -314,20 +314,20 @@ def main():
         return
 
     info(f"Starting DNS update service. Will check every {UPDATE_INTERVAL} seconds and update if required.")
-    with thread_safe_lock:
+    with __thread_safe_lock:
         info(f"Monitoring hosts: {list(__updatable_hosts.keys())}")
 
     while True:
         try:
             info(f"Updating DNS records at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-            with thread_safe_lock:
+            with __thread_safe_lock:
                 success = update_dns_records(api_token, api_key, api_email, __updatable_hosts)
 
             if success:
                 info("All DNS records updated successfully!")
             else:
                 warn("Some DNS record updates failed.")
-            with thread_safe_lock:
+            with __thread_safe_lock:
                 write_health_status(__last_check)
             info(f"Next check in {UPDATE_INTERVAL} seconds...")
             time.sleep(UPDATE_INTERVAL)
